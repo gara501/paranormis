@@ -36,10 +36,10 @@ interface FogLayer {
 }
 
 const TAU = Math.PI * 2
-const HIT_RADIUS = 18
+const HIT_RADIUS = 24
 const STATUS_COLORS = {
   corroborated: '#e9e6dd',
-  review: '#b9a77e',
+  review: '#ffd278',
   unverified: '#d63b35',
 } as const
 
@@ -362,6 +362,22 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
       const centerX = width / 2
       const centerY = height / 2
       const radius = Math.hypot(width, height)
+      const pulseReach = radius / 2
+      const pulseProgress = (elapsed / 5) % 1
+      // Two slow sonar waves share the existing canvas animation loop.
+      if (!reducedMotion) {
+        context.save()
+        context.strokeStyle = accent
+        for (let wave = 0; wave < 2; wave += 1) {
+          const progress = (pulseProgress + wave * 0.5) % 1
+          context.globalAlpha = Math.sin(progress * Math.PI) * 0.3
+          context.lineWidth = 1.5
+          context.beginPath()
+          context.arc(centerX, centerY, Math.max(1, progress * pulseReach), 0, TAU)
+          context.stroke()
+        }
+        context.restore()
+      }
       const radarContext = context as CanvasRenderingContext2D & {
         createConicGradient?: (startAngle: number, x: number, y: number) => CanvasGradient
       }
@@ -386,7 +402,7 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
       const angle = wrapAngle(sweepAngle)
       for (const signal of entries) {
         if (!latest.current.visibleClasses.has(signal.entityClass)) continue
-        if (signal.x < -24 || signal.y < -24 || signal.x > width + 24 || signal.y > height + 24) continue
+        if (signal.x < -48 || signal.y < -48 || signal.x > width + 48 || signal.y > height + 48) continue
         if (latest.current.selectedSignalId === signal._id) signal.reveal = 1
         if (reducedMotion) signal.reveal = 0.55
         else {
@@ -396,41 +412,46 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
             signal.reveal = 1
             signal.lastSweep = pass
           }
+          const distanceFromCenter = Math.hypot(signal.x - centerX, signal.y - centerY)
+          for (let wave = 0; wave < 2; wave += 1) {
+            const waveRadius = ((pulseProgress + wave * 0.5) % 1) * pulseReach
+            if (Math.abs(distanceFromCenter - waveRadius) < 5 + dt * pulseReach / 5) signal.reveal = 1
+          }
           signal.reveal = Math.max(0, signal.reveal - dt * 0.45)
         }
 
-        const credibility = clamp(signal.credibilityIndex ?? 0, 0, 100)
-        const r = clamp(3 + latest.current.map.getZoom() * 1.1, 4, 10) * (0.75 + credibility / 200)
+        // Keep every report legible, including records without a credibility score.
+        const r = clamp(9 + latest.current.map.getZoom() * 0.4, 10, 13)
         signal.radius = r
         const color = signal.signalColor
-        const dotAlpha = clamp(0.12 + 0.08 * Math.sin(elapsed * 2 + signal.phase) + signal.reveal, 0, 1)
+        const badgeRadius = r + 5
+        context.save()
+        context.fillStyle = 'rgba(9,9,9,.96)'
+        context.strokeStyle = color
+        context.lineWidth = 1.5
+        context.shadowColor = color
+        context.shadowBlur = 5 + signal.reveal * 9
         context.beginPath()
-        context.arc(signal.x, signal.y, 2.2, 0, TAU)
-        context.fillStyle = color
-        context.globalAlpha = dotAlpha
+        context.arc(signal.x, signal.y, badgeRadius, 0, TAU)
         context.fill()
-        context.globalAlpha = 1
+        context.stroke()
+        context.shadowBlur = 0
+        context.lineWidth = 2
+        context.lineCap = 'round'
+        context.lineJoin = 'round'
+        drawSigil(context, signal.entityClass, signal.x, signal.y, r)
+        context.restore()
 
-        if (signal.reveal > 0.05) {
+        if (!reducedMotion) {
+          const ripple = (elapsed / 3 + signal.phase / TAU) % 1
           context.save()
-          context.globalAlpha = signal.reveal * 0.9
+          context.globalAlpha = (1 - ripple) * (0.25 + signal.reveal * 0.3)
           context.strokeStyle = color
-          context.fillStyle = color
-          context.lineWidth = 1.6
-          context.lineCap = 'round'
-          context.lineJoin = 'round'
-          context.shadowColor = color
-          context.shadowBlur = 10
-          drawSigil(context, signal.entityClass, signal.x, signal.y, r)
-          context.restore()
-          const ringRadius = 6 + (1 - signal.reveal) * 22
+          context.lineWidth = 1.25
           context.beginPath()
-          context.arc(signal.x, signal.y, ringRadius, 0, TAU)
-          context.strokeStyle = color
-          context.globalAlpha = signal.reveal * 0.45
-          context.lineWidth = 1
+          context.arc(signal.x, signal.y, badgeRadius + 3 + ripple * 20, 0, TAU)
           context.stroke()
-          context.globalAlpha = 1
+          context.restore()
         }
 
         if (latest.current.selectedSignalId === signal._id) {
@@ -494,10 +515,11 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
       }
       const target = Number.isFinite(closest) ? Math.pow(clamp(1 - closest / 200, 0, 1), 1.4) : 0
       receiverValue += (target - receiverValue) * clamp(dt * 6, 0, 1)
-      latest.current.onReceiverLevel(receiverValue)
+      latest.current.onReceiverLevel(receiverValue, dt)
     }
 
     function draw(time: number) {
+      reducedMotion = motionPreference.matches || latest.current.reducedMotion
       const dt = previousTime ? Math.min((time - previousTime) / 1000, 0.05) : 0
       previousTime = time
       if (!reducedMotion) elapsed += dt

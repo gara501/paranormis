@@ -706,9 +706,10 @@ body, button, input, select, textarea { font-family: var(--hud-sans); }
 .bestiary-map__legend { left: 1rem !important; padding: .65rem .75rem; font-size: .58rem !important; }
 .bestiary-map__instrument { right: 1rem !important; min-width: 15rem !important; padding: .55rem .65rem; }
 .bestiary-map__panel-label, .bestiary-map__instrument p span { color: var(--hud-muted) !important; font-size: .54rem !important; }
-.bestiary-map__legend .legend-dot--high { color: #87725c !important; background: #87725c !important; }
-.bestiary-map__legend .legend-dot--mid { color: #827b6d !important; background: #827b6d !important; }
-.bestiary-map__legend .legend-dot--low { color: #8d5d59 !important; background: #8d5d59 !important; }
+.bestiary-map__legend .legend-dot { width: .6rem; height: .6rem; box-shadow: 0 0 8px color-mix(in srgb, currentColor 35%, transparent); }
+.bestiary-map__legend .legend-dot--high { color: #e9e6dd !important; background: #e9e6dd !important; }
+.bestiary-map__legend .legend-dot--mid { color: #ffd278 !important; background: #ffd278 !important; }
+.bestiary-map__legend .legend-dot--low { color: #d63b35 !important; background: #d63b35 !important; }
 .bestiary-map__instrument strong { color: var(--hud-text); font-size: .62rem; }
 .bestiary-map__compass { border-color: var(--hud-line); color: var(--hud-alert); }
 .bestiary-map__waveform { border-color: var(--hud-line); color: var(--hud-muted); }
