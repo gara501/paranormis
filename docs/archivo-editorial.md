@@ -25,7 +25,7 @@ El sitio solo consulta avistamientos publicados con `editorialApproved == true`;
 
 El frontend necesita únicamente `PUBLIC_SANITY_PROJECT_ID` y `PUBLIC_SANITY_DATASET`. El token `SANITY_WRITE_TOKEN` se conserva en `backend/.env`, excluido de Git, para las herramientas editoriales. No revocarlo sin revisar otros consumidores del proyecto.
 
-En Vercel, retirar `SANITY_WRITE_TOKEN` de Production, Preview y Development para **Paranormis**, y desplegar la versión nueva. Un cambio de variables no elimina el secreto de despliegues anteriores: retirar o proteger esos despliegues para impedir que sus antiguas rutas de escritura sigan accesibles. No reutilizar artefactos anteriores.
+Por decisión del propietario, `SANITY_WRITE_TOKEN` se conserva en Vercel (Production y Preview). No eliminarlo ni revocarlo: también se utiliza en Bestiary. El frontend actual no lo consume y sus APIs de escritura responden 410. Los despliegues históricos conservan su código anterior; retirar o proteger esas versiones requiere una gestión separada. No restaurar una versión que reactive los aportes públicos.
 
 Publicar también el Studio actualizado con `npm run deploy` desde `backend` en el hostname correspondiente a Paranormis. No sustituir el Studio de Apex Bestiary.
 
