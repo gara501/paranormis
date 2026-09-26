@@ -12,4 +12,5 @@ export const sanityClient = createClient({
   dataset,
   apiVersion: '2024-01-01',
   useCdn: false,
+  perspective: 'published',
 })

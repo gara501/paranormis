@@ -5,6 +5,16 @@ export default defineType({
   title: 'Avistamiento',
   type: 'document',
   fields: [
+    defineField({name: 'title', title: 'Título del expediente', type: 'string', validation: (Rule) => Rule.required().max(120)}),
+    defineField({name: 'city', title: 'Ciudad o localidad', type: 'string', description: 'Localidad asociada al relato. No implica una posición exacta.'}),
+    defineField({
+      name: 'editorialApproved', title: 'Aprobado para publicar', type: 'boolean', initialValue: false,
+      description: 'Confirma la revisión de fuentes y datos personales. No confirma la explicación paranormal. El trabajo privado debe permanecer como borrador; para retirar un expediente usa Despublicar.',
+      validation: (Rule) => Rule.custom((value) => value === true || 'Revisa las fuentes y aprueba el expediente antes de publicarlo.'),
+    }),
+    defineField({name: 'dateNotes', title: 'Aclaraciones sobre la fecha', type: 'text'}),
+    defineField({name: 'narrative', title: 'Guion de narración', type: 'text', description: 'Resumen editorial para lectura en voz alta. Atribuye las afirmaciones a sus fuentes.'}),
+    defineField({name: 'additionalSources', title: 'Fuentes complementarias', type: 'array', of: [defineArrayMember({type: 'object', fields: [defineField({name: 'title', title: 'Título', type: 'string', validation: (Rule) => Rule.required()}), defineField({name: 'url', title: 'Enlace', type: 'url', validation: (Rule) => Rule.required().uri({scheme: ['https']})})]})]}),
     defineField({
       name: 'importSourceId',
       title: 'ID de origen de importación',
@@ -148,8 +158,8 @@ export default defineType({
         {title: 'Relato clínico o historial de caso', value: 'case_history'},
       ]},
     }),
-    defineField({name: 'sourceTitle', title: 'Título de la fuente', type: 'string'}),
-    defineField({name: 'sourceUrl', title: 'URL de la fuente', type: 'url'}),
+    defineField({name: 'sourceTitle', title: 'Título de la fuente', type: 'string', validation: (Rule) => Rule.required()}),
+    defineField({name: 'sourceUrl', title: 'URL de la fuente', type: 'url', validation: (Rule) => Rule.required().uri({scheme: ['https']})}),
 
     defineField({
       name: 'testimonyAudio',
@@ -240,11 +250,11 @@ export default defineType({
 
     defineField({
       name: 'status',
-      title: 'Estado del expediente',
+      title: 'Estado de corroboración',
       type: 'string',
       options: {
         list: [
-          {title: 'Pendiente de revisión', value: 'pending'},
+          {title: 'Relato sin corroborar', value: 'pending'},
           {title: 'Verificado por el equipo', value: 'verified'},
           {title: 'Descartado', value: 'dismissed'},
         ],
@@ -255,13 +265,14 @@ export default defineType({
   preview: {
     select: {
       creatureName: 'creature.name',
+      caseTitle: 'title',
       date: 'date',
       index: 'credibilityIndex',
     },
-    prepare({creatureName, date, index}) {
+    prepare({creatureName, caseTitle, date, index}) {
       const formattedDate = date ? new Date(date).toLocaleDateString('es-CO') : 'sin fecha'
       return {
-        title: creatureName ?? 'Avistamiento sin criatura asociada',
+        title: caseTitle ?? creatureName ?? 'Avistamiento sin criatura asociada',
         subtitle: `${formattedDate} · credibilidad: ${index ?? 'sin calcular'}`,
       }
     },

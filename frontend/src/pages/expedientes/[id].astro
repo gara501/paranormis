@@ -1,0 +1,18 @@
+---
+import Layout from '../../layouts/EditorialLayout.astro'
+import CaseActions from '../../components/CaseActions'
+import {sanityClient} from '../../lib/sanity'
+import {CASE_QUERY,caseDate,type EditorialCase} from '../../lib/editorial'
+let item:EditorialCase|null=null
+let failed=false
+try {item=await sanityClient.fetch(CASE_QUERY,{id:Astro.params.id})} catch {failed=true}
+Astro.response.headers.set('Cache-Control','no-store')
+if(!item) Astro.response.status=failed?503:404
+const image=item?new URL(`/tarjetas/${encodeURIComponent(item._id)}.png`,Astro.url.origin).href:undefined
+const narration=item?.narrative||item?.freeformDescription||''
+const sources=item?[{title:item.sourceTitle||'Fuente principal',url:item.sourceUrl},...(item.additionalSources||[])].filter(s=>s.url?.startsWith('https://')):[]
+---
+<Layout title={item?.title||(failed?'Archivo temporalmente no disponible':'Expediente no disponible')} description={item?.freeformDescription.slice(0,180)} image={image}>
+<a class="editorial-link" href="/explorar">← Volver al archivo</a>
+{item?<><header class="editorial-intro"><p class="editorial-eyebrow">Expediente / {item.city||item.region?.name}</p><h1>{item.title}</h1><p class="editorial-note">{caseDate(item)}</p></header><div class="editorial-case"><article class="editorial-panel"><p class="editorial-badge">Testimonio publicado · {item.status==='verified'?'Corroboración editorial registrada':'Explicación paranormal sin corroborar'}</p><h2>El relato</h2><p>{item.freeformDescription}</p>{item.dateNotes&&<aside class="editorial-disclosure"><h3>Sobre la fecha</h3><p>{item.dateNotes}</p></aside>}<p class="editorial-note">Ubicación cartográfica {item.locationPrecision==='exact'?'indicada por la fuente':'aproximada, utilizada como referencia del relato'}.</p><div class="editorial-actions"><a href={`/map?sighting=${encodeURIComponent(item._id)}`}>Ver este expediente en el radar ↗</a></div><CaseActions id={item._id} title={item.title} text={narration} client:load/><details><summary>Transcripción de la lectura</summary><p>{item.title}. {narration}</p></details></article><aside class="editorial-panel"><p class="editorial-eyebrow">Procedencia / Consulta abierta</p><h2>Fuentes del expediente</h2><ol class="editorial-sources">{sources.map(s=><li><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a></li>)}</ol><p class="editorial-note">Estas fuentes documentan la difusión del testimonio. No constituyen una demostración de fenómenos sobrenaturales.</p></aside></div></>:<div class="editorial-panel"><h1>{failed?'No pudimos consultar el archivo':'Expediente no disponible'}</h1><p>{failed?'Vuelve a intentarlo más tarde.':'Puede que este expediente no esté publicado o haya sido retirado.'}</p></div>}
+</Layout>

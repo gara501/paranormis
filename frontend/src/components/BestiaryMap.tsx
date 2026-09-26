@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {sanityClient} from '../lib/sanity'
+import {PUBLIC_SIGHTING_FILTER, casePath} from '../lib/editorial'
 import {classForCreatureName, ENTITY_CLASSES, labelForEntityClass, type EntityClass} from '../data/entityClass'
 import ParanormalOverlay from './map/ParanormalOverlay'
 import type {MapSignal} from './map/types'
@@ -123,7 +124,7 @@ function EntitySigil({entityClass}: {entityClass: EntityClass}) {
 
 function statusLabel(status: string): string {
   if (status === 'verified' || status === 'corroborated') return 'Corroborada'
-  if (status === 'pending' || status === 'under review') return 'En revisión'
+  if (status === 'pending' || status === 'under review') return 'Sin corroborar'
   return 'Sin verificar'
 }
 
@@ -144,7 +145,6 @@ export default function BestiaryMap() {
   const [mapLoadState, setMapLoadState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [selectedSighting, setSelectedSighting] = useState<EnrichedSighting | null>(null)
   const closeDossier = useCallback(() => setSelectedSighting(null), [])
-  const [receivedSightingId, setReceivedSightingId] = useState<string | null>(null)
   const [illustrationLoading, setIllustrationLoading] = useState(false)
   const [receiverOn, setReceiverOn] = useState(false)
   const [flashlightOn, setFlashlightOn] = useState(true)
@@ -297,6 +297,7 @@ export default function BestiaryMap() {
     }
 
     function removeMarker(id: string) {
+      setSelectedSighting(current => current?._id === id ? null : current)
       const marker = markersRef.current.get(id)
       if (marker) marker.remove()
       markersRef.current.delete(id)
@@ -306,20 +307,18 @@ export default function BestiaryMap() {
     async function loadInitialSightings() {
       try {
         const params = new URLSearchParams(window.location.search)
-        const reportId = params.get('report')
-        const targetId = reportId ?? params.get('sighting')
+        const targetId = params.get('sighting') ?? params.get('report')
         const targetSightingPromise: Promise<SightingFromSanity | null> = targetId
-          ? sanityClient.fetch(`*[_type == "sighting" && _id == $id][0] ${SIGHTING_PROJECTION}`, {id: targetId})
+          ? sanityClient.fetch(`*[${PUBLIC_SIGHTING_FILTER} && _id == $id][0] ${SIGHTING_PROJECTION}`, {id: targetId})
           : Promise.resolve(null)
         const [loadedSightings, targetSighting] = await Promise.all([
-          sanityClient.fetch<SightingFromSanity[]>(`*[_type == "sighting" && defined(location)] ${SIGHTING_PROJECTION}`),
+          sanityClient.fetch<SightingFromSanity[]>(`*[${PUBLIC_SIGHTING_FILTER} && defined(location)] ${SIGHTING_PROJECTION}`),
           targetSightingPromise,
         ])
         if (!isMounted) return
         loadedSightings.forEach(upsertMarker)
         if (targetSighting?.location) {
           upsertMarker(targetSighting)
-          if (reportId) setReceivedSightingId(targetSighting._id)
           window.setTimeout(() => {
             const selected = sightingsRef.current.get(targetSighting._id)
             if (selected) focusSighting(selected)
@@ -333,7 +332,7 @@ export default function BestiaryMap() {
     }
 
     loadInitialSightings()
-    const subscription = sanityClient.listen('*[_type == "sighting"]', {}, {tag: 'paranormis-map-live'}).subscribe({
+    const subscription = sanityClient.listen(`*[${PUBLIC_SIGHTING_FILTER}]`, {}, {tag: 'paranormis-map-live'}).subscribe({
       next: async (update) => {
         if (!isMounted) return
         setConnectionStatus('live')
@@ -343,9 +342,10 @@ export default function BestiaryMap() {
           return
         }
         const fresh: SightingFromSanity | null = await sanityClient.fetch(
-          `*[_id == $id][0] ${SIGHTING_PROJECTION}`,
+          `*[${PUBLIC_SIGHTING_FILTER} && _id == $id][0] ${SIGHTING_PROJECTION}`,
           {id: update.documentId},
         )
+        if (!isMounted) return
         if (fresh?.location) upsertMarker(fresh)
         else removeMarker(update.documentId)
         publishSightings()
@@ -501,7 +501,7 @@ export default function BestiaryMap() {
       <aside className="bestiary-map__legend" aria-label="Leyenda y filtros de señales">
         <p className="bestiary-map__panel-label">Estado de la señal</p>
         <div className="signal-status"><span className="legend-dot legend-dot--high" /> Corroborada</div>
-        <div className="signal-status"><span className="legend-dot legend-dot--mid" /> En revisión</div>
+        <div className="signal-status"><span className="legend-dot legend-dot--mid" /> Sin corroborar</div>
         <div className="signal-status"><span className="legend-dot legend-dot--low" /> Sin verificar</div>
         <p className="bestiary-map__panel-label entity-filter-heading">Clase de entidad</p>
         <div className="entity-class-filters">
@@ -544,7 +544,7 @@ export default function BestiaryMap() {
       </button>
       <div className="bestiary-map__explore-controls">
         <a className="bestiary-map__archive-link" href="/bestiary"><span aria-hidden="true">✦</span> Abrir el archivo <span aria-hidden="true">↗</span></a>
-        <a className="bestiary-map__report-link" href="/report"><span aria-hidden="true">✎</span> Reportar un avistamiento</a>
+        <a className="bestiary-map__report-link" href="/explorar"><span aria-hidden="true">⌖</span> Buscar por ciudad</a>
         <button type="button" className="bestiary-map__explore" onClick={discoverRandomSignal} disabled={visibleSightings.length === 0}>
           <span aria-hidden="true">✦</span> Señal aleatoria
         </button>
@@ -581,6 +581,7 @@ export default function BestiaryMap() {
             <span className="creature-dossier__stamp">Expediente abierto</span>
           </div>
           <div className="creature-dossier__body">
+            <a className="creature-dossier__archive-link" href={casePath(selectedSighting._id)}>Abrir, guardar y compartir expediente ↗</a>
             <p className="creature-dossier__eyebrow">{selectedSighting.region?.country ?? 'Archivo global'} · {dateLabel(selectedSighting.dateBasis)}: {formatDate(selectedSighting.date)}</p>
             <h2>{selectedSighting.creature?.name ?? 'Entidad sin clasificar'}</h2>
             <div className="creature-dossier__badges"><span>{threatLabel(selectedSighting.creature?.threatLevel)}</span><span>{accountLabel(selectedSighting.accountType)}</span><span>{statusLabel(selectedSighting.status)}</span><span>{selectedSighting.credibilityIndex == null ? 'Credibilidad sin calcular' : `Credibilidad ${selectedSighting.credibilityIndex}%`}</span></div>
@@ -600,9 +601,6 @@ export default function BestiaryMap() {
             {selectedSighting.creature?._id && <a className="creature-dossier__archive-link" href={`/bestiary#${encodeURIComponent(selectedSighting.creature._id)}`}>Ver perfil completo <span aria-hidden="true">↗</span></a>}
           </div>
         </aside>
-      )}
-      {receivedSightingId && selectedSighting?._id === receivedSightingId && (
-        <div className="bestiary-map__arrival" role="status"><span className="bestiary-map__arrival-sigil" aria-hidden="true">⌁</span><p><strong>Nueva señal detectada</strong><span>La señal espera revisión del equipo.</span></p><button type="button" onClick={() => setReceivedSightingId(null)} aria-label="Descartar aviso de nueva señal">×</button></div>
       )}
     </main>
   )

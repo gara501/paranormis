@@ -18,7 +18,7 @@ const NAME_CLASSIFICATION: Partial<Record<EntityClass, string[]>> = {
   specter: [
     'el sombreron', 'sombreron', 'el silbon', 'silbon', 'la mechona', 'mechona',
     'la monja fantasma', 'monja fantasma', 'la mujer fantasma de la carretera',
-    'mujer fantasma de la carretera', 'fantasma', 'poltergeist',
+    'mujer fantasma de la carretera', 'fantasma', 'poltergeist', 'el excavador del gaitan',
   ],
   entity: [
     'demonio de posesion', 'extraterrestres', 'seres grises', 'el duende', 'duende',

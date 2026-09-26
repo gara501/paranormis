@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {sanityClient} from '../lib/sanity'
+import {PUBLIC_SIGHTING_FILTER, casePath, caseDate} from '../lib/editorial'
 import SiteHeader from './SiteHeader'
 import ConnectionBoard from './ConnectionBoard'
 import './CreatureArchive.css'
@@ -21,6 +22,7 @@ export interface FieldSighting {
   _id: string
   creatureId: string
   date?: string
+  dateBasis?: string
   credibilityIndex?: number | null
   status?: string
   observedTraits?: string[]
@@ -36,8 +38,8 @@ const CREATURE_QUERY = `*[_type == "creature"] | order(name asc) {
   "regions": regions[]->{name, country}
 }`
 
-const SIGHTINGS_QUERY = `*[_type == "sighting" && defined(creature._ref)] | order(date desc) {
-  _id, "creatureId": creature._ref, date, credibilityIndex, status,
+const SIGHTINGS_QUERY = `*[${PUBLIC_SIGHTING_FILTER} && defined(creature._ref)] | order(date desc) {
+  _id, "creatureId": creature._ref, date, dateBasis, credibilityIndex, status,
   observedTraits, freeformDescription, location, corroboratedBy[]{_ref},
   "region": region->{name, country}
 }`
@@ -117,7 +119,7 @@ export default function CreatureArchive() {
   useEffect(() => {
     let active = true
     let requestVersion = 0
-    const subscription = sanityClient.listen('*[_type == "sighting"]', {}, {tag: 'bestiary-archive-live'}).subscribe({
+    const subscription = sanityClient.listen(`*[${PUBLIC_SIGHTING_FILTER}]`, {}, {tag: 'bestiary-archive-live'}).subscribe({
       next: async () => {
         const version = ++requestVersion
         try {
@@ -290,7 +292,7 @@ export default function CreatureArchive() {
               </div>
               {sightingsStatus === 'loading' && <p className="archive__reports-message">Recuperando reportes de campo…</p>}
               {sightingsStatus === 'error' && <p className="archive__reports-message">Los reportes no están disponibles temporalmente. El perfil sigue accesible.</p>}
-              {sightingsStatus === 'ready' && creatureSightings.length === 0 && <div className="archive__reports-empty"><span aria-hidden="true">◎</span><p>Aún no hay avistamientos registrados para esta entidad.</p><a href="/report">Enviar un reporte ↗</a></div>}
+              {sightingsStatus === 'ready' && creatureSightings.length === 0 && <div className="archive__reports-empty"><span aria-hidden="true">◎</span><p>Aún no hay avistamientos publicados para esta entidad.</p><a href="/explorar">Explorar casos documentados ↗</a></div>}
               {selectedSighting && <div className="archive__evidence-grid">
                 <div className="archive__timeline" aria-label={`Avistamientos de ${selected.name}`}>
                   {creatureSightings.map((sighting, index) => <button key={sighting._id} type="button" className={`archive__timeline-item ${selectedSighting._id === sighting._id ? 'is-active' : ''}`} onClick={() => setSelectedSightingId(sighting._id)} aria-pressed={selectedSighting._id === sighting._id}>
@@ -300,9 +302,11 @@ export default function CreatureArchive() {
                   </button>)}
                 </div>
                 <div className="archive__evidence">
-                  <div className="archive__evidence-top"><span>REPORTE SELECCIONADO</span><span className={`archive__filing-status archive__filing-status--${selectedSighting.status ?? 'pending'}`}>{selectedSighting.status === 'verified' ? 'VERIFICADO' : selectedSighting.status === 'dismissed' ? 'DESCARTADO' : 'EN REVISIÓN'}</span></div>
+                  <div className="archive__evidence-top"><span>REPORTE SELECCIONADO</span><span className={`archive__filing-status archive__filing-status--${selectedSighting.status ?? 'pending'}`}>{selectedSighting.status === 'verified' ? 'CORROBORACIÓN REGISTRADA' : selectedSighting.status === 'dismissed' ? 'DESCARTADO' : 'SIN CORROBORAR'}</span></div>
                   <div className="archive__evidence-meta"><div><span>FECHA</span><strong>{formatSightingDate(selectedSighting.date)}</strong></div><div><span>REGIÓN</span><strong>{selectedSighting.region?.name ?? 'Sin confirmar'}</strong></div><div><span>ÍNDICE DE CREDIBILIDAD</span><strong className="archive__credibility">{selectedSighting.credibilityIndex == null ? 'PENDIENTE' : `${Math.round(selectedSighting.credibilityIndex)} / 100`}</strong></div></div>
-                  <blockquote className="archive__witness-account">“{selectedSighting.freeformDescription ?? 'No hay relato del testigo.'}”</blockquote>
+                  <p>{caseDate({date: selectedSighting.date ?? '', dateBasis: selectedSighting.dateBasis})}</p>
+                  <blockquote className="archive__witness-account">{selectedSighting.freeformDescription ?? 'No hay relato del testigo.'}</blockquote>
+                  <a className="archive__map-link" href={casePath(selectedSighting._id)}>Abrir expediente con fuentes ↗</a>
                   <div className="archive__comparison"><div className="archive__comparison-heading"><span>04 / COMPARACIÓN DE RASGOS</span><strong>{matchedCount} <small>/ {canonicalTraits.length}</small></strong></div><p>Rasgos característicos mencionados en el reporte</p>
                     <ul>{canonicalTraits.length ? canonicalTraits.map((trait) => <li key={trait} className={observedSet.has(normalizeTrait(trait)) ? 'is-matched' : ''}><span aria-hidden="true">{observedSet.has(normalizeTrait(trait)) ? '✓' : '—'}</span>{trait}<small>{observedSet.has(normalizeTrait(trait)) ? 'OBSERVADO' : 'NO OBSERVADO'}</small></li>) : <li>Aún no hay rasgos característicos registrados.</li>}</ul>
                     {unlistedObservations.length > 0 && <div className="archive__unlisted"><span>OBSERVACIONES ADICIONALES</span><p>{unlistedObservations.join(' · ')}</p></div>}

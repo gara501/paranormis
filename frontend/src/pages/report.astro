@@ -1,19 +1,4 @@
 ---
-import SightingForm from '../components/SightingForm'
-
-export const prerender = true
+export const prerender = false
+return Astro.redirect('/bestiary', 308)
 ---
-
-<html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Paranormis · Reporte de avistamiento</title>
-    <style>html, body { margin: 0; min-height: 100%; background: #050a0e; }</style>
-  </head>
-  <body>
-    <SightingForm client:only="react" />
-  </body>
-</html>
-
-

@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/EditorialLayout.astro'
+import CaseExplorer from '../components/CaseExplorer'
+import {sanityClient} from '../lib/sanity'
+import {CASES_QUERY,casePath,type EditorialCase} from '../lib/editorial'
+let cases:EditorialCase[]=[]
+let failed=false
+try {cases=await sanityClient.fetch(CASES_QUERY)} catch {failed=true;Astro.response.status=503}
+const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date())
+const seed=Array.from(day).reduce((sum,c)=>sum+c.charCodeAt(0),0)
+const stable=[...cases].sort((a,b)=>a._id.localeCompare(b._id))
+const nightly=stable.length?stable[seed%stable.length]:null
+---
+<Layout title="Explorar expedientes"><header class="editorial-intro"><p class="editorial-eyebrow">Archivo abierto / Publicación editorial</p><h1>Cada lugar guarda<br/>una historia.</h1><p>Explora relatos documentados en fuentes públicas. Publicar un testimonio no confirma su explicación paranormal.</p></header>
+{failed?<div class="editorial-panel" role="alert">No pudimos consultar el archivo. Inténtalo de nuevo en unos minutos.</div>:<><div class="editorial-features"><a href="/recorridos/bogota" class="editorial-panel"><span class="editorial-eyebrow">01 / Recorrido narrado</span><h2>Bogotá, después del cierre</h2><p>Dos relatos, sus lugares y las fuentes detrás de ellos. Un recorrido virtual por la ciudad.</p><span class="editorial-link">Comenzar recorrido ↗</span></a>{nightly&&<a href={casePath(nightly._id)} class="editorial-panel"><span class="editorial-eyebrow">02 / Transmisión de la noche</span><h2>{nightly.title}</h2><p>La selección diaria del archivo. Abre el expediente para leerlo o escuchar su narración.</p><span class="editorial-link">Sintonizar expediente ↗</span></a>}</div><CaseExplorer cases={cases} client:load/></>}
+</Layout>
