@@ -143,6 +143,7 @@ export default function BestiaryMap() {
   const [isScanning, setIsScanning] = useState(false)
   const [mapLoadState, setMapLoadState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [selectedSighting, setSelectedSighting] = useState<EnrichedSighting | null>(null)
+  const closeDossier = useCallback(() => setSelectedSighting(null), [])
   const [receivedSightingId, setReceivedSightingId] = useState<string | null>(null)
   const [illustrationLoading, setIllustrationLoading] = useState(false)
   const [receiverOn, setReceiverOn] = useState(false)
@@ -361,12 +362,12 @@ export default function BestiaryMap() {
   useEffect(() => {
     if (!selectedSighting) return
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelectedSighting(null)
+      if (event.key === 'Escape') closeDossier()
     }
     window.addEventListener('keydown', closeOnEscape)
     dossierRef.current?.focus()
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [selectedSighting])
+  }, [selectedSighting, closeDossier])
 
   function scanForSignals() {
     const map = mapRef.current
@@ -492,6 +493,7 @@ export default function BestiaryMap() {
           staticBurst={isGlitching}
           reducedMotion={reducedMotion}
           onSelect={selectSighting}
+          onDismiss={closeDossier}
           onReceiverLevel={onReceiverLevel}
         />
       )}
@@ -567,7 +569,10 @@ export default function BestiaryMap() {
 
       {selectedSighting && (
         <aside ref={dossierRef} className="creature-dossier" aria-label={`Expediente de ${selectedSighting.creature?.name ?? 'entidad sin clasificar'}`} tabIndex={-1}>
-          <button type="button" className="creature-dossier__close" onClick={() => setSelectedSighting(null)} aria-label="Cerrar expediente">×</button>
+          <div className="creature-dossier__toolbar">
+            <span>Expediente del avistamiento</span>
+            <button type="button" className="creature-dossier__close" onClick={closeDossier} aria-label="Cerrar expediente"><span aria-hidden="true">×</span> Cerrar</button>
+          </div>
           <div className="creature-dossier__image-wrap">
             {illustrationLoading && <div className="creature-dossier__revelation" role="status" aria-live="polite"><span className="creature-dossier__revelation-sigil">✦</span><span>Revelando imagen</span></div>}
             {selectedSighting.creature?.imageUrl ? (

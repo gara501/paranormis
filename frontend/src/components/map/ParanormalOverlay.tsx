@@ -13,6 +13,7 @@ interface ParanormalOverlayProps {
   staticBurst: boolean
   reducedMotion: boolean
   onSelect: (signalId: string) => void
+  onDismiss: () => void
   onReceiverLevel: (level: number, dt: number) => void
 }
 
@@ -289,14 +290,14 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
       schedule()
     }
 
-    function onCanvasClick(event: MouseEvent) {
+    function onMapClick(event: L.LeafletMouseEvent) {
+      prepareSignals()
       updateProjection()
-      const rect = container.getBoundingClientRect()
-      const signal = hitTest(event.clientX - rect.left, event.clientY - rect.top)
+      const signal = hitTest(event.containerPoint.x, event.containerPoint.y)
       if (signal) {
-        event.preventDefault()
-        event.stopPropagation()
         latest.current.onSelect(signal._id)
+      } else {
+        latest.current.onDismiss()
       }
     }
 
@@ -554,7 +555,7 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
     container.addEventListener('pointermove', onPointerMove, {passive: true})
     container.addEventListener('pointerdown', updatePointer, {passive: true})
     container.addEventListener('pointerleave', onPointerLeave, {passive: true})
-    container.addEventListener('click', onCanvasClick)
+    props.map.on('click', onMapClick)
     props.map.on('move zoom viewreset', onMapChange)
     props.map.on('resize', onMapResize)
     motionPreference.addEventListener('change', noMotion)
@@ -578,7 +579,7 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
       container.removeEventListener('pointermove', onPointerMove)
       container.removeEventListener('pointerdown', updatePointer)
       container.removeEventListener('pointerleave', onPointerLeave)
-      container.removeEventListener('click', onCanvasClick)
+      props.map.off('click', onMapClick)
       props.map.off('move zoom viewreset', onMapChange)
       props.map.off('resize', onMapResize)
       motionPreference.removeEventListener('change', noMotion)

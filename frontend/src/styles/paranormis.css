@@ -81,6 +81,46 @@ a { text-underline-offset: .2em; }
 .bestiary-map-wrap .leaflet-popup-content-wrapper { background: #111110; border-color: var(--hud-line); color: var(--hud-text); }
 .bestiary-map-wrap .leaflet-popup-tip { background: #111110; }
 .creature-dossier { background: rgba(12,12,11,.98); border-left-color: var(--hud-alert); }
+.bestiary-map-wrap .creature-dossier {
+  top: var(--map-nav-height, 60px);
+  height: calc(100% - var(--map-nav-height, 60px));
+  overscroll-behavior: contain;
+}
+.creature-dossier__toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .65rem .85rem;
+  border-bottom: 1px solid var(--hud-line);
+  background: #111110;
+  color: var(--hud-muted);
+  font: 500 .68rem/1.5 var(--hud-mono);
+}
+.creature-dossier__toolbar .creature-dossier__close {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  flex-shrink: 0;
+  width: auto;
+  min-width: 88px;
+  height: 44px;
+  padding: .5rem .75rem;
+  border: 1px solid var(--hud-alert);
+  background: #191918;
+  color: var(--hud-text);
+  font: 500 .75rem/1 var(--hud-mono);
+}
+.creature-dossier__toolbar .creature-dossier__close:hover {
+  background: var(--hud-text);
+  color: var(--hud-void);
+}
+.creature-dossier__close span { font-size: 1.5rem; }
 .creature-dossier__image-wrap { background: #161615; }
 .creature-dossier__image { filter: saturate(.48) contrast(1.08); }
 .creature-dossier__waveform { color: var(--hud-muted); }
