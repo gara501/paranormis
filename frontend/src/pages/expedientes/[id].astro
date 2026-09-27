@@ -8,7 +8,7 @@ let failed=false
 try {item=await sanityClient.fetch(CASE_QUERY,{id:Astro.params.id})} catch {failed=true}
 Astro.response.headers.set('Cache-Control','no-store')
 if(!item) Astro.response.status=failed?503:404
-const image=item?new URL(`/tarjetas/${encodeURIComponent(item._id)}.png`,Astro.url.origin).href:undefined
+const image=item?new URL('/paranormis-social-card.svg',Astro.url.origin).href:undefined
 const narration=item?.narrative||item?.freeformDescription||''
 const sources=item?[{title:item.sourceTitle||'Fuente principal',url:item.sourceUrl},...(item.additionalSources||[])].filter(s=>s.url?.startsWith('https://')):[]
 ---
