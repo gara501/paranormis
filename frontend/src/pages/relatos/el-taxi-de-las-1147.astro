@@ -1,0 +1,15 @@
+---
+import Layout from '../../layouts/EditorialLayout.astro'
+import EditorialActions from '../../components/EditorialActions'
+import {taxiNarrative} from '../../data/taxiNarrative'
+export const prerender = true
+const source='https://www.infobae.com/colombia/2024/10/31/los-misterios-paranormales-de-bogota-las-historias-que-transitan-las-calles/'
+---
+<Layout title="El taxi de las 11:47" description="Ficción dramatizada en audio, inspirada en un testimonio publicado sobre una pasajera fantasma en Bogotá.">
+<a class="editorial-link" href="/explorar">← Volver a explorar</a>
+<header class="editorial-intro"><p class="editorial-eyebrow">Ficción dramatizada / Bogotá · Audio</p><h1>El taxi de las 11:47</h1><p>Una pasajera aparece bajo la llovizna. El taxímetro avanza, pero el viaje parece volver siempre al mismo punto.</p></header>
+<article class="editorial-panel taxi-detail"><p class="editorial-badge">Esta pieza es ficción. Los personajes, la hora exacta, el ciclo y el desenlace pertenecen a esta narración.</p><EditorialActions id="ficcion-taxi-1147" title="El taxi de las 11:47" href="/relatos/el-taxi-de-las-1147" client:load/><section class="taxi-audio"><p class="editorial-eyebrow">Transmisión de audio</p><audio controls preload="metadata" src="/audio/eltaxi.mp3" aria-label="Audio de ficción: El taxi de las 11:47">Tu navegador no puede reproducir este audio.</audio><a class="editorial-link" href="/audio/eltaxi.mp3" download="el-taxi-de-las-1147.mp3">Descargar audio ↓</a></section><details open><summary>Leer el relato completo</summary><div>{taxiNarrative.map((paragraph,index)=><p class={index===taxiNarrative.length-1?'taxi-ending':''}>{paragraph}</p>)}</div></details><section><h2>Nota de archivo y referencia</h2><p>La fuente recoge un testimonio atribuido a un taxista sobre una pasajera fantasma. No reporta la muerte descrita en esta recreación ni los personajes y acontecimientos de la narración.</p><a class="editorial-link" href={source} target="_blank" rel="noopener noreferrer">Consultar el relato publicado por Infobae ↗</a></section></article>
+</Layout>
+<style>
+ .taxi-detail{max-width:850px}.taxi-audio{padding:20px;border:1px solid #302f29;background:#090a08}.taxi-audio audio{width:100%;display:block;margin:12px 0;accent-color:#d63b35}.taxi-detail details{margin:28px 0}.taxi-detail details summary{font:700 1.15rem Merriweather,Georgia,serif;padding:12px 0}.taxi-detail details div{max-width:720px}.taxi-detail details div p{font-size:.92rem;line-height:1.9}.taxi-detail .taxi-ending{border-left:2px solid #d63b35;padding-left:16px;color:#eeeae0}
+</style>

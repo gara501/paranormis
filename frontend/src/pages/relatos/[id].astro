@@ -1,0 +1,13 @@
+---
+import Layout from '../../layouts/EditorialLayout.astro'
+import EditorialActions from '../../components/EditorialActions'
+import {editorialReports} from '../../data/editorialReports'
+export const prerender = true
+export function getStaticPaths(){return editorialReports.map(report=>({params:{id:report.id},props:{report,id:report.id}}))}
+const {report,id}=Astro.props
+---
+<Layout title={report.title} description={report.summary}>
+<a class="editorial-link" href="/explorar">← Volver a explorar</a>
+<header class="editorial-intro"><p class="editorial-eyebrow">Relato publicado / {report.city}</p><h1>{report.title}</h1><p>{report.summary}</p></header>
+<article class="editorial-panel report-detail"><p class="editorial-eyebrow">{report.classification}</p><p>{report.dateNote}</p><p>Este registro resume una versión difundida por la fuente citada. La publicación documenta el relato, no confirma una explicación paranormal.</p><EditorialActions id={`editorial-${id}`} title={report.title} href={`/relatos/${id}`} client:load/><section><h2>Fuente</h2><p><a class="editorial-link" href={report.sourceUrl} target="_blank" rel="noopener noreferrer">{report.sourceTitle} ↗</a></p></section></article>
+</Layout>
