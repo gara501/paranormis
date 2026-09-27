@@ -14,6 +14,7 @@ export interface EditorialCase {
   sourceUrl?: string
   additionalSources?: {title: string; url: string}[]
   narrative?: string
+  audioUrl?: string
   status?: string
   creature?: {name: string; imageUrl?: string} | null
   region?: {name: string; country?: string} | null
@@ -21,7 +22,7 @@ export interface EditorialCase {
 export const CASE_PROJECTION = `{
   _id, "title": coalesce(title, creature->name, "Expediente"), city, date, dateBasis, dateNotes,
   locationPrecision, location, freeformDescription, sourceTitle, sourceUrl,
-  additionalSources[]{title,url}, narrative, status,
+  additionalSources[]{title,url}, narrative, "audioUrl": testimonyAudio.asset->url, status,
   "creature": creature->{name,"imageUrl":archiveIllustration.asset->url},
   "region": region->{name,country}
 }`

@@ -8,13 +8,16 @@ export default function CaseActions({id,title,text}:{id:string;title:string;text
   const [message,setMessage]=useState('')
   const [speaking,setSpeaking]=useState(false)
   const [audio,setAudio]=useState(false)
+  const [audioUrl,setAudioUrl]=useState<string>()
   useEffect(()=>{
     const sync=()=>setSaved(readFavorites().includes(id))
     sync(); setAudio('speechSynthesis' in window)
+    let active=true
+    fetch(`/api/case-audio?id=${encodeURIComponent(id)}`).then(response=>response.ok?response.json():null).then(data=>{if(active&&typeof data?.audioUrl==='string')setAudioUrl(data.audioUrl)}).catch(()=>{})
     window.addEventListener('storage',sync)
     const stop=()=>{ if(document.hidden) {window.speechSynthesis?.cancel();setSpeaking(false)} }
     document.addEventListener('visibilitychange',stop)
-    return ()=>{window.removeEventListener('storage',sync);document.removeEventListener('visibilitychange',stop);window.speechSynthesis?.cancel()}
+    return ()=>{active=false;window.removeEventListener('storage',sync);document.removeEventListener('visibilitychange',stop);window.speechSynthesis?.cancel()}
   },[id])
   function save() {
     try {const ids=readFavorites(); const next=ids.includes(id)?ids.filter(x=>x!==id):[id,...ids].slice(0,500); localStorage.setItem(FAVORITES_KEY,JSON.stringify(next));setSaved(next.includes(id));setMessage(next.includes(id)?'Guardado en este dispositivo.':'Eliminado de tus guardados.')} catch {setMessage('El navegador no permite guardar en este dispositivo.')}
@@ -36,6 +39,6 @@ export default function CaseActions({id,title,text}:{id:string;title:string;text
     <button type="button" onClick={save} aria-pressed={saved}>{saved?'★ Guardado':'☆ Guardar expediente'}</button>
     <button type="button" onClick={share}>Compartir enlace ↗</button>
     <a href={`/tarjetas/${encodeURIComponent(id)}.png?download=1`}>Descargar tarjeta</a>
-    {audio && <button type="button" onClick={narrate} aria-pressed={speaking}>{speaking?'■ Detener lectura':'▷ Escuchar relato'}</button>}
-  </div><p className="editorial-note">Favoritos locales · Lectura opcional con la voz del dispositivo.</p><p role="status" className="editorial-note">{message}</p></div>
+    {audioUrl ? <div className="editorial-audio"><span className="editorial-note">Narración del archivo</span><audio controls preload="metadata" style={{width:'min(100%, 380px)',height:42,accentColor:'#d63b35'}} src={audioUrl}>Tu navegador no puede reproducir este audio.</audio></div> : audio && <button type="button" onClick={narrate} aria-pressed={speaking}>{speaking?'■ Detener lectura':'▷ Escuchar relato'}</button>}
+  </div><p className="editorial-note">Favoritos locales · {audioUrl?'Audio narrado por el archivo.':'Lectura opcional con la voz del dispositivo.'}</p><p role="status" className="editorial-note">{message}</p></div>
 }
