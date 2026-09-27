@@ -12,6 +12,36 @@ const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(ne
 const seed=Array.from(day).reduce((sum,c)=>sum+c.charCodeAt(0),0)
 const stable=[...cases].sort((a,b)=>a._id.localeCompare(b._id))
 const nightly=stable.length?stable[seed%stable.length]:null
+const surpriseCases=cases.map(item=>({href:casePath(item._id),title:item.title,creature:item.creature?.name??''}))
+const taxiNarrative=[
+  'La lluvia no caía: se deshacía. Una llovizna fina, persistente, que convertía las luces de la Séptima en manchas amarillas sobre el asfalto brillante. El taxista, un hombre de cuarenta y pico llamado Héctor, llevaba tres horas sin pasajero. El radio hablaba de un partido que ya no le importaba. El reloj del tablero marcaba las 11:47.',
+  'Cuando el semáforo de la calle 26 se puso en rojo, Héctor sintió el peso. No un peso físico. Algo más denso. Como si el asiento de atrás se hubiera llenado de agua fría.',
+  '—Buenas noches —dijo una voz detrás de él.',
+  'Héctor no giró de inmediato. En Bogotá uno aprende a no girar de inmediato. Miró el espejo retrovisor. Había una mujer. Cabello negro, largo, pegado a la cara como si acabara de salir de la ducha. Abrigo oscuro. Manos sobre las rodillas. No llevaba paraguas. No goteaba.',
+  '—¿Para dónde? —preguntó él, porque eso es lo que se pregunta.',
+  'Ella dio una dirección en Teusaquillo. Una casa antigua, cerca del parque. Héctor puso el taxímetro. El número empezó a correr con una lentitud que le pareció ofensiva.',
+  'Durante los primeros minutos no hablaron. El taxi avanzaba entre charcos y buses que parecían barcos oxidados. Entonces ella dijo:',
+  '—Usted ya me había llevado antes.',
+  'Héctor frunció el ceño. —No creo. Tengo buena memoria para las caras.',
+  '—No para las mías —respondió ella, y sonrió sin mostrar los dientes.',
+  'El retrovisor se empañó. Héctor lo limpió con la manga. Cuando volvió a mirar, la mujer seguía ahí, pero ahora tenía las manos juntas, como si rezara o como si contuviera algo que se le quería salir.',
+  'Llegaron a la cuadra. La casa estaba a oscuras. Las rejas oxidadas. El jardín comido por la maleza. Héctor detuvo el carro.',
+  '—Son seis mil doscientos.',
+  'Ella no se movió. —No traje plata —dijo—. Pero usted ya sabe cómo se paga esto.',
+  'Héctor sintió un frío que no venía de la ventanilla abierta.',
+  '—Baje, por favor.',
+  '—No puedo bajar —contestó ella—. Usted tampoco.',
+  'Entonces Héctor giró.',
+  'El asiento de atrás estaba vacío. El cinturón colgaba sin usar. En el tapizado negro había una mancha oscura, circular, del tamaño de una palma. No era agua. Olía a tierra mojada y a algo metálico.',
+  'El taxímetro seguía corriendo. 11:47.',
+  'Héctor miró el reloj del celular. También marcaba las 11:47.',
+  'Arrancó. Dio la vuelta a la manzana. Volvió a pasar por el semáforo de la 26. El mismo semáforo en rojo. La misma llovizna. Y otra vez el peso en el asiento de atrás.',
+  '—Buenas noches —dijo la voz.',
+  'Esta vez Héctor no preguntó el destino. Ya lo sabía.',
+  'La radio, que había estado en silencio, emitió un comunicado breve, casi perdido entre la estática: «…el cuerpo del taxista Héctor Ramírez, hallado esta madrugada en un vehículo abandonado en Teusaquillo. Las autoridades investigan las circunstancias…»',
+  'El taxímetro seguía sumando. Y el taxi, una vez más, no estaba vacío.'
+]
+const taxiSource='https://www.infobae.com/colombia/2024/10/31/los-misterios-paranormales-de-bogota-las-historias-que-transitan-las-calles/'
 const paranormalChannels=[
   {handle:'chimbadas.raras',url:'https://www.tiktok.com/@chimbadas.raras'},
   {handle:'historiasyespantos',url:'https://www.tiktok.com/@historiasyespantos'},
@@ -20,12 +50,62 @@ const paranormalChannels=[
 ]
 ---
 <Layout title="Explorar expedientes"><header class="editorial-intro"><p class="editorial-eyebrow">Archivo abierto / Publicación editorial</p><h1>Cada lugar guarda<br/>una historia.</h1><p>Explora relatos documentados en fuentes públicas. Publicar un testimonio no confirma su explicación paranormal.</p></header>
-{failed?<div class="editorial-panel" role="alert">No pudimos consultar el archivo. Inténtalo de nuevo en unos minutos.</div>:<><div class="editorial-features"><a href="/recorridos/bogota" class="editorial-panel"><span class="editorial-eyebrow">01 / Recorrido narrado</span><h2>Rutas de lo inexplicable</h2><p>Cinco expedientes de distintas ciudades y una ruta complementaria por siete lugares e historias de La Candelaria.</p><span class="editorial-link">Comenzar recorrido ↗</span></a>{nightly&&<a href={casePath(nightly._id)} class="editorial-panel"><span class="editorial-eyebrow">02 / Transmisión de la noche</span><h2>{nightly.title}</h2><p>La selección diaria del archivo. Abre el expediente para leerlo o escuchar su narración.</p><span class="editorial-link">Sintonizar expediente ↗</span></a>}</div><CaseExplorer cases={cases} client:load/></>}
+{failed?<div class="editorial-panel" role="alert">No pudimos consultar el archivo. Inténtalo de nuevo en unos minutos.</div>:<><div class="editorial-features"><a href="/recorridos/bogota" class="editorial-panel"><span class="editorial-eyebrow">01 / Recorrido narrado</span><h2>Rutas de lo inexplicable</h2><p>Cinco expedientes de distintas ciudades y una ruta complementaria por siete lugares e historias de La Candelaria.</p><span class="editorial-link">Comenzar recorrido ↗</span></a>{nightly&&<a href={casePath(nightly._id)} class="editorial-panel"><span class="editorial-eyebrow">02 / Transmisión de la noche</span><h2>{nightly.title}</h2><p>La selección diaria del archivo. Abre el expediente para leerlo o escuchar su narración.</p><span class="editorial-link">Sintonizar expediente ↗</span></a>}</div>
+<section class="night-file" id="expediente-noche" aria-labelledby="night-file-title">
+  <div class="night-file__heading"><p class="editorial-eyebrow">Expediente especial / Bogotá · Recreación narrativa</p><h2 id="night-file-title">El taxi de las 11:47</h2><p>Una pasajera aparece bajo la llovizna. El taxímetro avanza, pero el viaje parece volver siempre al mismo punto.</p><div class="night-file__meta"><span><i aria-hidden="true"></i> Relato dramatizado</span><span>Lectura y audio</span></div></div>
+  <div class="night-file__body">
+    <div class="night-file__audio"><span class="editorial-eyebrow">Transmisión de audio / 01</span><audio controls preload="metadata" src="/audio/eltaxi.mp3" aria-label="Narración en audio: El taxi de las 11:47">Tu navegador no puede reproducir este audio.</audio><div class="night-file__actions"><button type="button" class="night-file__button" id="night-share">Compartir expediente <span aria-hidden="true">↗</span></button><a class="night-file__button" href="/audio/eltaxi.mp3" download="el-taxi-de-las-1147.mp3">Descargar audio <span aria-hidden="true">↓</span></a></div></div>
+    <details class="night-file__transcript"><summary>Leer el relato completo <span aria-hidden="true">＋</span></summary><article>{taxiNarrative.map((paragraph,index)=><p class={index===taxiNarrative.length-1?'night-file__ending':''}>{paragraph}</p>)}</article></details>
+    <div class="night-file__note"><span class="editorial-eyebrow">Nota de archivo</span><p>Esta pieza es ficción dramatizada. Héctor Ramírez, la hora exacta, el ciclo y el desenlace pertenecen a esta narración. La fuente recoge otro testimonio sobre una pasajera fantasma en un taxi; no reporta la muerte descrita aquí.</p><a class="editorial-link" href={taxiSource} target="_blank" rel="noopener noreferrer">Consultar relato publicado por Infobae ↗</a></div>
+    <div class="night-file__surprise"><label for="night-category">Sintonizar otro expediente <select id="night-category"><option value="todos">Cualquier categoría</option><option value="apariciones">Apariciones</option><option value="ovni">OVNI y luces</option><option value="fenomenos">Otros fenómenos</option></select></label><button type="button" class="night-file__button night-file__button--primary" id="night-surprise">Sorpréndeme con otro caso <span aria-hidden="true">↗</span></button><p id="night-status" role="status" aria-live="polite"></p></div>
+  </div>
+</section>
+<script define:vars={{surpriseCases}}>
+  const surpriseButton=document.querySelector('#night-surprise')
+  const categorySelect=document.querySelector('#night-category')
+  const status=document.querySelector('#night-status')
+  const classify=(item)=>{const text=`${item.title} ${item.creature}`.toLocaleLowerCase('es');if(/ovni|extrater|ufo|luz/.test(text))return 'ovni';if(/fantasma|monja|mujer|poltergeist|espectro|aparici|bruja|entidad|duende/.test(text))return 'apariciones';return 'fenomenos'}
+  surpriseButton?.addEventListener('click',()=>{const category=categorySelect.value;const choices=surpriseCases.filter(item=>category==='todos'||classify(item)===category);if(!choices.length){status.textContent='Todavía no hay expedientes publicados en esta categoría.';return}const selected=choices[Math.floor(Math.random()*choices.length)];window.location.assign(selected.href)})
+  document.querySelector('#night-share')?.addEventListener('click',async(event)=>{const button=event.currentTarget;const shareData={title:'El taxi de las 11:47 — Paranormis',text:'Escucha esta recreación narrativa de Paranormis.',url:`${window.location.origin}/explorar#expediente-noche`};try{if(navigator.share)await navigator.share(shareData);else{await navigator.clipboard.writeText(shareData.url);button.innerHTML='Enlace copiado <span aria-hidden="true">✓</span>';setTimeout(()=>button.innerHTML='Compartir expediente <span aria-hidden="true">↗</span>',2200)}}catch(error){if(error?.name!=='AbortError')button.textContent='No se pudo compartir el enlace'}})
+</script>
+<CaseExplorer cases={cases} client:load/></>}
 <section class="paranormal-channels" aria-labelledby="paranormal-channels-title"><header><p class="editorial-eyebrow">Frecuencias externas / TikTok</p><h2 id="paranormal-channels-title">Canales paranormales.</h2><p>Creadores para seguir explorando historias y relatos de misterio.</p></header><div class="paranormal-channel-grid">{paranormalChannels.map((channel,index)=><a class="paranormal-channel" href={channel.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir en TikTok el canal @${channel.handle} en una pestaña nueva`}><span class="paranormal-channel__top"><span>SEÑAL {String(index+1).padStart(2,'0')} / TIKTOK</span><span class="paranormal-channel__play" aria-hidden="true">↗</span></span><span class="paranormal-channel__handle">@{channel.handle}</span><span class="paranormal-channel__note">Historias y contenido paranormal</span><span class="paranormal-channel__action">ABRIR CANAL <span aria-hidden="true">↗</span></span></a>)}</div></section>
 <section class="editorial-candelaria" aria-labelledby="editorial-candelaria-title"><header><p class="editorial-eyebrow">Ruta complementaria / Bogotá · La Candelaria</p><h2 id="editorial-candelaria-title">Siete lugares, siete relatos.</h2><p>Selección editorial basada en una fuente publicada. Son leyendas y relatos atribuidos; no forman parte del conteo de expedientes ni se presentan como avistamientos verificados.</p></header><ol>{candelariaStops.map((stop,index)=><li><a href={`/recorridos/bogota#candelaria-stop-${String(index+1).padStart(2,'0')}`}><span>{String(index+1).padStart(2,'0')}</span><strong>{stop.title}</strong><small>{stop.kind}</small><b aria-hidden="true">↗</b></a></li>)}</ol><a class="editorial-link" href="/recorridos/bogota#candelaria-title">Abrir recorrido completo ↗</a></section>
 <section class="editorial-reports" aria-labelledby="editorial-reports-title"><header><p class="editorial-eyebrow">Anexo / Relatos publicados en fuentes públicas</p><h2 id="editorial-reports-title">Otros casos de Colombia.</h2><p>La prensa documenta que estas versiones fueron publicadas; eso no confirma una explicación paranormal. Las ubicaciones se muestran solo como referencias editoriales, no como señales del mapa.</p></header><div class="editorial-report-grid">{editorialReports.map((report,index)=><article class="editorial-panel editorial-report"><p class="editorial-eyebrow">Relato {String(index+1).padStart(2,'0')} / {report.city}</p><h3>{report.title}</h3><p>{report.summary}</p><p class="editorial-note">{report.classification} · {report.dateNote}</p><a class="editorial-link" href={report.sourceUrl} target="_blank" rel="noopener noreferrer">{report.sourceTitle} ↗</a></article>)}</div></section>
 </Layout>
 <style>
+  .night-file{--night-line:#343129;--night-muted:#a29d8e;margin-top:30px;border:1px solid var(--night-line);background:radial-gradient(ellipse at 85% 8%,rgba(173,49,42,.11),transparent 34%),linear-gradient(135deg,#10110f,#0a0b0a 68%);display:grid;grid-template-columns:minmax(250px,.78fr) minmax(0,1.3fr);position:relative;overflow:hidden}
+  .night-file::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.17;background-image:linear-gradient(rgba(221,215,198,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(221,215,198,.09) 1px,transparent 1px);background-size:40px 40px;mask-image:linear-gradient(110deg,transparent 18%,#000 100%)}
+  .night-file__heading,.night-file__body{position:relative;z-index:1;padding:clamp(20px,3vw,36px)}
+  .night-file__heading{border-right:1px solid var(--night-line);display:flex;flex-direction:column;align-items:flex-start}
+  .night-file__heading h2{font-family:'Merriweather',Georgia,serif;font-size:clamp(1.5rem,3vw,2.25rem);line-height:1.25;margin:.7rem 0}
+  .night-file__heading>p:not(.editorial-eyebrow){color:#c2bdaf;line-height:1.75;font-size:.88rem;max-width:32rem}
+  .night-file__meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:auto;padding-top:28px;color:var(--night-muted);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase}
+  .night-file__meta i{display:inline-block;width:7px;height:7px;margin-right:6px;background:#d7433c;border-radius:50%;box-shadow:0 0 12px #d7433c}
+  .night-file__body{display:grid;align-content:start;gap:18px}
+  .night-file__audio,.night-file__transcript,.night-file__note,.night-file__surprise{border:1px solid var(--night-line);background:rgba(8,9,8,.78);padding:16px}
+  .night-file audio{display:block;width:100%;margin:12px 0 15px;accent-color:#dc453e}
+  .night-file__actions{display:flex;gap:9px;flex-wrap:wrap}
+  .night-file__button{min-height:40px;display:inline-flex;justify-content:center;align-items:center;gap:12px;border:1px solid #4a463d;background:#10110f;padding:9px 13px;color:#eeeae0;font:600 .69rem 'IBM Plex Mono',monospace;letter-spacing:.07em;text-decoration:none;cursor:pointer;transition:border-color .18s ease,background .18s ease}
+  .night-file__button:hover,.night-file__button:focus-visible{outline:none;border-color:#dc453e;background:#17110f}
+  .night-file__button span{color:#e24942}
+  .night-file__button--primary{border-color:#b43832;background:linear-gradient(100deg,rgba(143,37,32,.24),rgba(10,11,10,.92))}
+  .night-file__transcript summary{list-style:none;display:flex;justify-content:space-between;gap:12px;cursor:pointer;color:#f0ede4;font-family:'Merriweather',Georgia,serif;font-size:.93rem}
+  .night-file__transcript summary::-webkit-details-marker{display:none}
+  .night-file__transcript summary span{color:#e24942;font-family:monospace;font-size:1.1rem}
+  .night-file__transcript[open] summary{padding-bottom:12px;border-bottom:1px solid var(--night-line)}
+  .night-file__transcript article{max-height:480px;overflow:auto;padding:8px 8px 0 0;color:#c4c0b5;font-size:.8rem;line-height:1.8}
+  .night-file__transcript article p{margin:.8rem 0}
+  .night-file__transcript .night-file__ending{border-left:2px solid #d7433c;padding-left:12px;color:#f0ede4}
+  .night-file__note{border-left:2px solid #bc3b35}
+  .night-file__note p{color:var(--night-muted);font-size:.75rem;line-height:1.75;margin:.5rem 0}
+  .night-file__note .editorial-link{font-size:.7rem}
+  .night-file__surprise{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end}
+  .night-file__surprise label{display:grid;gap:8px;color:#d5d0c3;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase}
+  .night-file__surprise select{width:100%;min-height:40px;border:1px solid var(--night-line);background:#0b0c0b;color:#eeeae0;padding:8px;font:inherit;letter-spacing:normal;text-transform:none}
+  .night-file__surprise #night-status{grid-column:1/-1;color:var(--night-muted);font-size:.7rem;margin:0}
+  @media(max-width:740px){.night-file{grid-template-columns:1fr}.night-file__heading{border-right:0;border-bottom:1px solid var(--night-line);min-height:225px}.night-file__body{padding:18px}.night-file__surprise{grid-template-columns:1fr}.night-file__surprise #night-status{grid-column:1}}
+  @media(prefers-reduced-motion:reduce){.night-file__button{transition:none}}
   .editorial-candelaria{margin-top:58px;border-top:1px solid #302f29;padding-top:30px}
   .editorial-candelaria>header{max-width:740px;margin-bottom:24px}
   .editorial-candelaria h2{font-size:clamp(1.25rem,2vw,1.7rem);margin:.5rem 0}
