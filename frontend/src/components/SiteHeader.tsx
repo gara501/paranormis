@@ -1,7 +1,7 @@
 import './SiteHeader.css'
 import '../styles/paranormis.css'
 
-type Section = 'map' | 'bestiary' | 'discover'
+type Section = 'map' | 'bestiary' | 'discover' | 'channels'
 
 export default function SiteHeader({active, overlay = false}: {active: Section; overlay?: boolean}) {
   return (
@@ -14,6 +14,7 @@ export default function SiteHeader({active, overlay = false}: {active: Section; 
         <a href="/map" aria-current={active === 'map' ? 'page' : undefined}><span>01</span> Radar de campo</a>
         <a href="/bestiary" aria-current={active === 'bestiary' ? 'page' : undefined}><span>02</span> Archivo</a>
         <a href="/explorar" aria-current={active === 'discover' ? 'page' : undefined}><span>03</span> Explorar casos</a>
+        <a href="/canales" aria-current={active === 'channels' ? 'page' : undefined}><span>04</span> Canales</a>
       </nav>
       <span className="site-header__classification">PR—01 <i /> EN LÍNEA</span>
     </header>

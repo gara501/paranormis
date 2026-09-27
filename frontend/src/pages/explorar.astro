@@ -7,7 +7,7 @@ let cases:EditorialCase[]=[]
 let failed=false
 try {cases=await sanityClient.fetch(CASES_QUERY)} catch {failed=true}
 ---
-<Layout title="Explorar el archivo" description="Casos, recorridos y canales paranormales del archivo editorial Paranormis.">
+<Layout title="Explorar el archivo" description="Casos y recorridos paranormales del archivo editorial Paranormis.">
 <header class="explore-intro"><p class="editorial-eyebrow">Archivo abierto / Paranormis</p><h1>Explora lo inexplicable.</h1><p>Encuentra una historia para leer o escuchar.</p></header>
 {failed&&<div class="editorial-panel" role="status">Algunos expedientes del archivo no están disponibles ahora. Puedes explorar los relatos publicados y recorridos.</div>}
 <CaseExplorer cases={cases} client:load/>
