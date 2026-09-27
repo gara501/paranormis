@@ -3,6 +3,8 @@ import Layout from '../layouts/EditorialLayout.astro'
 import CaseExplorer from '../components/CaseExplorer'
 import {sanityClient} from '../lib/sanity'
 import {CASES_QUERY,casePath,type EditorialCase} from '../lib/editorial'
+import {candelariaStops} from '../data/candelariaStops'
+import {editorialReports} from '../data/editorialReports'
 let cases:EditorialCase[]=[]
 let failed=false
 try {cases=await sanityClient.fetch(CASES_QUERY)} catch {failed=true;Astro.response.status=503}
@@ -10,7 +12,56 @@ const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(ne
 const seed=Array.from(day).reduce((sum,c)=>sum+c.charCodeAt(0),0)
 const stable=[...cases].sort((a,b)=>a._id.localeCompare(b._id))
 const nightly=stable.length?stable[seed%stable.length]:null
+const paranormalChannels=[
+  {handle:'chimbadas.raras',url:'https://www.tiktok.com/@chimbadas.raras'},
+  {handle:'historiasyespantos',url:'https://www.tiktok.com/@historiasyespantos'},
+  {handle:'anapaolaamor',url:'https://www.tiktok.com/@anapaolaamor'},
+  {handle:'unlugaroscuro666',url:'https://www.tiktok.com/@unlugaroscuro666'},
+]
 ---
 <Layout title="Explorar expedientes"><header class="editorial-intro"><p class="editorial-eyebrow">Archivo abierto / Publicación editorial</p><h1>Cada lugar guarda<br/>una historia.</h1><p>Explora relatos documentados en fuentes públicas. Publicar un testimonio no confirma su explicación paranormal.</p></header>
 {failed?<div class="editorial-panel" role="alert">No pudimos consultar el archivo. Inténtalo de nuevo en unos minutos.</div>:<><div class="editorial-features"><a href="/recorridos/bogota" class="editorial-panel"><span class="editorial-eyebrow">01 / Recorrido narrado</span><h2>Rutas de lo inexplicable</h2><p>Cinco expedientes de distintas ciudades y una ruta complementaria por siete lugares e historias de La Candelaria.</p><span class="editorial-link">Comenzar recorrido ↗</span></a>{nightly&&<a href={casePath(nightly._id)} class="editorial-panel"><span class="editorial-eyebrow">02 / Transmisión de la noche</span><h2>{nightly.title}</h2><p>La selección diaria del archivo. Abre el expediente para leerlo o escuchar su narración.</p><span class="editorial-link">Sintonizar expediente ↗</span></a>}</div><CaseExplorer cases={cases} client:load/></>}
+<section class="paranormal-channels" aria-labelledby="paranormal-channels-title"><header><p class="editorial-eyebrow">Frecuencias externas / TikTok</p><h2 id="paranormal-channels-title">Canales paranormales.</h2><p>Creadores para seguir explorando historias y relatos de misterio.</p></header><div class="paranormal-channel-grid">{paranormalChannels.map((channel,index)=><a class="paranormal-channel" href={channel.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir en TikTok el canal @${channel.handle} en una pestaña nueva`}><span class="paranormal-channel__top"><span>SEÑAL {String(index+1).padStart(2,'0')} / TIKTOK</span><span class="paranormal-channel__play" aria-hidden="true">↗</span></span><span class="paranormal-channel__handle">@{channel.handle}</span><span class="paranormal-channel__note">Historias y contenido paranormal</span><span class="paranormal-channel__action">ABRIR CANAL <span aria-hidden="true">↗</span></span></a>)}</div></section>
+<section class="editorial-candelaria" aria-labelledby="editorial-candelaria-title"><header><p class="editorial-eyebrow">Ruta complementaria / Bogotá · La Candelaria</p><h2 id="editorial-candelaria-title">Siete lugares, siete relatos.</h2><p>Selección editorial basada en una fuente publicada. Son leyendas y relatos atribuidos; no forman parte del conteo de expedientes ni se presentan como avistamientos verificados.</p></header><ol>{candelariaStops.map((stop,index)=><li><a href={`/recorridos/bogota#candelaria-stop-${String(index+1).padStart(2,'0')}`}><span>{String(index+1).padStart(2,'0')}</span><strong>{stop.title}</strong><small>{stop.kind}</small><b aria-hidden="true">↗</b></a></li>)}</ol><a class="editorial-link" href="/recorridos/bogota#candelaria-title">Abrir recorrido completo ↗</a></section>
+<section class="editorial-reports" aria-labelledby="editorial-reports-title"><header><p class="editorial-eyebrow">Anexo / Relatos publicados en fuentes públicas</p><h2 id="editorial-reports-title">Otros casos de Colombia.</h2><p>La prensa documenta que estas versiones fueron publicadas; eso no confirma una explicación paranormal. Las ubicaciones se muestran solo como referencias editoriales, no como señales del mapa.</p></header><div class="editorial-report-grid">{editorialReports.map((report,index)=><article class="editorial-panel editorial-report"><p class="editorial-eyebrow">Relato {String(index+1).padStart(2,'0')} / {report.city}</p><h3>{report.title}</h3><p>{report.summary}</p><p class="editorial-note">{report.classification} · {report.dateNote}</p><a class="editorial-link" href={report.sourceUrl} target="_blank" rel="noopener noreferrer">{report.sourceTitle} ↗</a></article>)}</div></section>
 </Layout>
+<style>
+  .editorial-candelaria{margin-top:58px;border-top:1px solid #302f29;padding-top:30px}
+  .editorial-candelaria>header{max-width:740px;margin-bottom:24px}
+  .editorial-candelaria h2{font-size:clamp(1.25rem,2vw,1.7rem);margin:.5rem 0}
+  .editorial-candelaria ol{list-style:none;padding:0;margin:0 0 20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 22px}
+  .editorial-candelaria li{border-top:1px solid #302f29}
+  .editorial-candelaria li a{min-height:64px;display:grid;grid-template-columns:30px minmax(0,1fr) 20px;grid-template-rows:auto auto;align-content:center;column-gap:10px;padding:10px 0;color:inherit;text-decoration:none}
+  .editorial-candelaria li a:hover strong{color:#e84a43}
+  .editorial-candelaria li span{grid-row:1/3;align-self:center;color:#c8463f;font-size:.72rem}
+  .editorial-candelaria li strong{font-size:.88rem;font-weight:600}
+  .editorial-candelaria li small{grid-column:2;color:#918d80;font-size:.67rem;margin-top:4px}
+  .editorial-candelaria li b{grid-column:3;grid-row:1/3;align-self:center;font-size:.8rem;color:#c8463f}
+  @media(max-width:640px){.editorial-candelaria ol{grid-template-columns:1fr}}
+  .editorial-reports{margin-top:58px;border-top:1px solid #302f29;padding-top:30px}
+  .editorial-reports>header{max-width:740px;margin-bottom:24px}
+  .editorial-reports h2{font-size:clamp(1.25rem,2vw,1.7rem);margin:.5rem 0}
+  .editorial-report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .editorial-report{padding:18px;display:flex;flex-direction:column;align-items:flex-start}
+  .editorial-report h3{font-size:1rem;line-height:1.5;margin:.45rem 0 .6rem}
+  .editorial-report p{margin:.35rem 0}
+  .editorial-report .editorial-note{font-size:.72rem;color:#a29d8e}
+  .editorial-report .editorial-link{margin-top:auto;padding-top:12px;font-size:.72rem}
+  @media(max-width:640px){.editorial-report-grid{grid-template-columns:1fr}}
+  .paranormal-channels{margin-top:58px;border-top:1px solid #302f29;padding-top:30px;margin-bottom:30px}
+  .paranormal-channels>header{max-width:740px;margin-bottom:24px}
+  .paranormal-channels h2{font-size:clamp(1.25rem,2vw,1.7rem);margin:.5rem 0}
+  .paranormal-channel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .paranormal-channel{position:relative;isolation:isolate;overflow:hidden;min-height:190px;padding:19px 20px 16px;display:flex;flex-direction:column;align-items:flex-start;gap:10px;border:1px solid #38362e;background:linear-gradient(118deg,rgba(10,11,10,.96),rgba(13,14,12,.83)),url('/images/general.png') center 46%/cover;color:#eeece4;text-decoration:none;transition:border-color .2s ease,transform .2s ease,background-color .2s ease}
+  .paranormal-channel::before{content:'';position:absolute;z-index:-1;right:-38px;top:22px;width:145px;height:145px;border:1px solid rgba(215,66,58,.24);border-radius:50%;box-shadow:0 0 0 18px rgba(215,66,58,.035),0 0 0 38px rgba(215,66,58,.025)}
+  .paranormal-channel::after{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:#d43f39;transform:scaleY(.28);transform-origin:top;transition:transform .2s ease}
+  .paranormal-channel:hover,.paranormal-channel:focus-visible{border-color:#b33b35;transform:translateY(-2px);outline:none}
+  .paranormal-channel:hover::after,.paranormal-channel:focus-visible::after{transform:scaleY(1)}
+  .paranormal-channel__top{width:100%;display:flex;justify-content:space-between;align-items:center;color:#9f998a;font-size:.62rem;letter-spacing:.16em}
+  .paranormal-channel__play{width:32px;height:32px;display:grid;place-items:center;border:1px solid #3a332e;border-radius:50%;color:#e44a43;font-size:.9rem}
+  .paranormal-channel__handle{font-family:'Merriweather',Georgia,serif;font-size:clamp(1rem,1.8vw,1.24rem);font-weight:700;line-height:1.35;overflow-wrap:anywhere}
+  .paranormal-channel__note{color:#a7a293;font-size:.76rem;line-height:1.55}
+  .paranormal-channel__action{margin-top:auto;padding-top:7px;color:#e4dfd2;font-size:.65rem;font-weight:700;letter-spacing:.13em}
+  .paranormal-channel__action span{color:#dc4640}
+  @media(max-width:640px){.paranormal-channel-grid{grid-template-columns:1fr}.paranormal-channel{min-height:170px}}
+</style>
