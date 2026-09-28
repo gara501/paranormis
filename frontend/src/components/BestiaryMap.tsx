@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import L from 'leaflet'
+import type * as Leaflet from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import {sanityClient} from '../lib/sanity'
 import {PUBLIC_SIGHTING_FILTER, casePath} from '../lib/editorial'
 import {classForCreatureName, ENTITY_CLASSES, labelForEntityClass, type EntityClass} from '../data/entityClass'
 import ParanormalOverlay from './map/ParanormalOverlay'
@@ -15,6 +14,8 @@ interface EnrichedSighting extends MapSignal {
   dateBasis?: 'event' | 'approximate_event' | 'record_date'
   locationPrecision?: 'exact' | 'locality' | 'region'
   accountType?: string
+  city?: string
+  timeOfDay?: string
   sourceTitle?: string
   sourceUrl?: string
   freeformDescription: string
@@ -46,7 +47,7 @@ type ReceiverGraph = {
 }
 
 const SIGHTING_PROJECTION = `{
-  _id,
+  _id, city, timeOfDay,
   location,
   date,
   dateBasis,
@@ -123,16 +124,17 @@ function EntitySigil({entityClass}: {entityClass: EntityClass}) {
 }
 
 function statusLabel(status: string): string {
-  if (status === 'verified' || status === 'corroborated') return 'Corroborada'
-  if (status === 'pending' || status === 'under review') return 'Sin corroborar'
-  return 'Sin verificar'
+  if (status === 'verified' || status === 'corroborated') return 'Con corroboración registrada'
+  if (status === 'pending' || status === 'under review') return 'En revisión'
+  return 'Sin corroboración registrada'
 }
 
 export default function BestiaryMap() {
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const [mapInstance, setMapInstance] = useState<L.Map | null>(null)
-  const markersRef = useRef<Map<string, L.CircleMarker>>(new Map())
+  const leafletRef = useRef<typeof import('leaflet') | null>(null)
+  const mapRef = useRef<Leaflet.Map | null>(null)
+  const [mapInstance, setMapInstance] = useState<Leaflet.Map | null>(null)
+  const markersRef = useRef<Map<string, Leaflet.CircleMarker>>(new Map())
   const sightingsRef = useRef<Map<string, EnrichedSighting>>(new Map())
   const coordinateReadoutRef = useRef<HTMLSpanElement>(null)
   const emfMeterRef = useRef<HTMLSpanElement>(null)
@@ -209,7 +211,7 @@ export default function BestiaryMap() {
     setSelectedSighting(sighting)
     const map = mapRef.current
     if (!map) return
-    const target: L.LatLngExpression = [sighting.location.lat, sighting.location.lng]
+    const target: Leaflet.LatLngExpression = [sighting.location.lat, sighting.location.lng]
     const zoom = Math.max(map.getZoom(), 5)
     if (reducedMotion) map.setView(target, zoom)
     else map.flyTo(target, zoom, {duration})
@@ -230,47 +232,50 @@ export default function BestiaryMap() {
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
-
-    const map = L.map(mapContainerRef.current, {
-      center: [10, -20],
-      zoom: 2,
-      zoomControl: true,
-    })
-    const baseLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-      maxZoom: 19,
-      crossOrigin: true,
-      updateWhenIdle: true,
-    }).addTo(map)
-
-    baseLayer.once('load', () => setMapLoadState('ready'))
-    const loadTimeout = window.setTimeout(() => {
-      setMapLoadState((state) => (state === 'loading' ? 'unavailable' : state))
-    }, 9000)
-    mapRef.current = map
-    setMapInstance(map)
-
-    map.on('mousemove', (event: L.LeafletMouseEvent) => {
-      if (coordinateReadoutRef.current) {
-        coordinateReadoutRef.current.textContent = `${event.latlng.lat.toFixed(3)}° / ${event.latlng.lng.toFixed(3)}°`
-      }
+    let cancelled = false
+    let loadTimeout = 0
+    let map: Leaflet.Map | null = null
+    void import('leaflet').then(({default: L}) => {
+      if (cancelled || !mapContainerRef.current) return
+      leafletRef.current = L
+      map = L.map(mapContainerRef.current, {center: [4.5709, -74.2973], zoom: 5, zoomControl: true})
+      const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd', maxZoom: 20, crossOrigin: true, updateWhenIdle: true,
+      }).addTo(map)
+      baseLayer.once('load', () => setMapLoadState('ready'))
+      loadTimeout = window.setTimeout(() => setMapLoadState((state) => state === 'loading' ? 'unavailable' : state), 9000)
+      mapRef.current = map
+      setMapInstance(map)
+      map.on('mousemove', (event: Leaflet.LeafletMouseEvent) => {
+        if (coordinateReadoutRef.current) coordinateReadoutRef.current.textContent = `${event.latlng.lat.toFixed(3)}° / ${event.latlng.lng.toFixed(3)}°`
+      })
+    }).catch((error) => {
+      console.error('[Paranormis radar] No se pudo cargar el mapa:', error)
+      setMapLoadState('unavailable')
     })
 
     return () => {
+      cancelled = true
       window.clearTimeout(loadTimeout)
       if (randomTimeoutRef.current) window.clearTimeout(randomTimeoutRef.current)
       if (receiverRef.current) {
         receiverRef.current.context.close()
         receiverRef.current = null
       }
-      map.remove()
+      map?.remove()
       mapRef.current = null
+      leafletRef.current = null
       setMapInstance(null)
     }
   }, [])
 
   useEffect(() => {
+    if (!mapInstance) return
     let isMounted = true
+    let subscription: {unsubscribe: () => void} | null = null
+    const L = leafletRef.current
+    if (!L) return
 
     function enrich(raw: SightingFromSanity): EnrichedSighting {
       return {...raw, entityClass: classForCreatureName(raw.creature?.name)}
@@ -305,7 +310,7 @@ export default function BestiaryMap() {
       sightingsRef.current.delete(id)
     }
 
-    async function loadInitialSightings() {
+    async function loadInitialSightings(sanityClient: typeof import('../lib/sanity').sanityClient) {
       try {
         const params = new URLSearchParams(window.location.search)
         const targetId = params.get('sighting') ?? params.get('report')
@@ -318,6 +323,13 @@ export default function BestiaryMap() {
         ])
         if (!isMounted) return
         loadedSightings.forEach(upsertMarker)
+        const located = [...sightingsRef.current.values()].filter((item) => Number.isFinite(item.location?.lat) && Number.isFinite(item.location?.lng))
+        if (located.length) {
+          const bounds = L.latLngBounds(located.map((item) => [item.location.lat, item.location.lng] as Leaflet.LatLngTuple))
+          mapRef.current?.fitBounds(bounds, {padding: [60, 60], maxZoom: 9, animate: false})
+        } else {
+          mapRef.current?.setView([4.5709, -74.2973], 5, {animate: false})
+        }
         if (targetSighting?.location) {
           upsertMarker(targetSighting)
           window.setTimeout(() => {
@@ -332,8 +344,10 @@ export default function BestiaryMap() {
       }
     }
 
-    loadInitialSightings()
-    const subscription = sanityClient.listen(`*[${PUBLIC_SIGHTING_FILTER}]`, {}, {tag: 'paranormis-map-live'}).subscribe({
+    void import('../lib/sanity').then(({sanityClient}) => {
+      if (!isMounted) return
+      void loadInitialSightings(sanityClient)
+      subscription = sanityClient.listen(`*[${PUBLIC_SIGHTING_FILTER}]`, {}, {tag: 'paranormis-map-live'}).subscribe({
       next: async (update) => {
         if (!isMounted) return
         setConnectionStatus('live')
@@ -352,13 +366,14 @@ export default function BestiaryMap() {
         publishSightings()
       },
       error: (error) => console.error('[Paranormis radar] Error en la conexión en vivo:', error),
-    })
+      })
+    }).catch((error) => console.error('[Paranormis radar] No se pudo conectar con el archivo:', error))
 
     return () => {
       isMounted = false
-      subscription.unsubscribe()
+      subscription?.unsubscribe()
     }
-  }, [focusSighting, publishSightings])
+  }, [focusSighting, publishSightings, mapInstance])
 
   useEffect(() => {
     if (!selectedSighting) return
@@ -393,8 +408,10 @@ export default function BestiaryMap() {
   function scanForSignals() {
     const map = mapRef.current
     if (!map || visibleSightings.length === 0) return
+    const L = leafletRef.current
+    if (!L) return
     setIsScanning(true)
-    const bounds = L.latLngBounds(visibleSightings.map((sighting) => L.latLng(sighting.location.lat, sighting.location.lng)))
+    const bounds = L.latLngBounds(visibleSightings.map((sighting) => [sighting.location.lat, sighting.location.lng] as Leaflet.LatLngTuple))
     map.flyToBounds(bounds, {padding: [88, 88], maxZoom: 7, duration: reducedMotion ? 0 : 1.6, animate: !reducedMotion})
     window.setTimeout(() => setIsScanning(false), reducedMotion ? 150 : 1800)
   }
@@ -616,12 +633,12 @@ export default function BestiaryMap() {
             <a className="creature-dossier__archive-link" href={casePath(selectedSighting._id)}>Abrir, guardar y compartir expediente ↗</a>
             <p className="creature-dossier__eyebrow">{selectedSighting.region?.country ?? 'Archivo global'} · {dateLabel(selectedSighting.dateBasis)}: {formatDate(selectedSighting.date)}</p>
             <h2>{selectedSighting.creature?.name ?? 'Entidad sin clasificar'}</h2>
-            <div className="creature-dossier__badges"><span>{threatLabel(selectedSighting.creature?.threatLevel)}</span><span>{accountLabel(selectedSighting.accountType)}</span><span>{statusLabel(selectedSighting.status)}</span><span>{selectedSighting.credibilityIndex == null ? 'Credibilidad sin calcular' : `Credibilidad ${selectedSighting.credibilityIndex}%`}</span></div>
+            <div className="creature-dossier__badges"><span>{threatLabel(selectedSighting.creature?.threatLevel)}</span><span>{accountLabel(selectedSighting.accountType)}</span><span>Fenómeno: {statusLabel(selectedSighting.status)}</span><span>{selectedSighting.credibilityIndex == null ? 'Credibilidad sin calcular' : `Credibilidad ${selectedSighting.credibilityIndex}%`}</span></div>
             <p className="creature-dossier__location">Reporte situado en <strong>{selectedSighting.region?.name ?? 'región desconocida'}</strong> · {locationLabel(selectedSighting.locationPrecision)}</p>
             {selectedSighting.creature?.physicalDescription && <p className="creature-dossier__description">{selectedSighting.creature.physicalDescription}</p>}
             {selectedSighting.creature?.distinctiveTraits?.length ? <div className="creature-dossier__traits"><p>Rasgos registrados</p>{selectedSighting.creature.distinctiveTraits.slice(0, 5).map((trait) => <span key={trait}>{trait}</span>)}</div> : null}
             <blockquote>{selectedSighting.freeformDescription}</blockquote>
-            {selectedSighting.sourceUrl && selectedSighting.sourceTitle && <p className="creature-dossier__origin">Fuente: <a href={selectedSighting.sourceUrl} target="_blank" rel="noopener noreferrer">{selectedSighting.sourceTitle} ↗</a></p>}
+            {selectedSighting.sourceUrl && selectedSighting.sourceTitle && <p className="creature-dossier__origin"><strong>Fuente documentada:</strong> <a href={selectedSighting.sourceUrl} target="_blank" rel="noopener noreferrer">{selectedSighting.sourceTitle} ↗</a>. Esta referencia documenta el relato; no confirma por sí sola el fenómeno.</p>}
             {selectedSighting.testimonyAudio?.url && (
               <section className="creature-dossier__testimony" aria-label="Testimonio de audio del testigo">
                 <p><span aria-hidden="true">◉</span> Grabación EVP recuperada</p>

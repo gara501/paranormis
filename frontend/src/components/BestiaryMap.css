@@ -1,7 +1,6 @@
 
 .bestiary-map-wrap { --night:#050a0e; --panel:rgba(7,15,10,.86); --amber:#42e8ff; --amber-dim:#1c7180; --phosphor:#b6ff52; --ink:#d9f2ed; --ink-dim:#9d9b83; --alert:#ff6558; isolation:isolate; position:relative; width:100%; height:100vh; overflow:hidden; background:var(--night); color:var(--ink); font-family:'IBM Plex Mono',monospace; }
 .bestiary-map__canvas,.bestiary-map-wrap .leaflet-container { width:100%; height:100%; background:#030503; }
-.bestiary-map-wrap .leaflet-tile-pane { filter:brightness(.42) saturate(.58) sepia(.32) hue-rotate(42deg) contrast(1.32); }
 
 /* A field-map atmosphere layered over the existing dark vector basemap. */
 .bestiary-map__atmosphere { z-index:500; position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg,rgba(234,205,137,.035) 0 1px,transparent 1px 4px),linear-gradient(90deg,rgba(0,0,0,.65),transparent 20%,transparent 80%,rgba(0,0,0,.65)),radial-gradient(ellipse at center,transparent 35%,rgba(1,6,2,.66) 100%); mix-blend-mode:screen; }

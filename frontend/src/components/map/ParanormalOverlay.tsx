@@ -1,5 +1,5 @@
 import {useEffect, useRef} from 'react'
-import L from 'leaflet'
+import type L from 'leaflet'
 import type {EntityClass} from '../../data/entityClass'
 import type {MapSignal} from './types'
 
@@ -18,7 +18,7 @@ interface ParanormalOverlayProps {
 }
 
 interface RuntimeSignal extends MapSignal {
-  latLng: L.LatLng
+  latLng: L.LatLngExpression
   x: number
   y: number
   radius: number
@@ -230,7 +230,7 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
       signalSource = current
       entries = current.map((signal, index) => ({
         ...signal,
-        latLng: L.latLng(signal.location.lat, signal.location.lng),
+        latLng: [signal.location.lat, signal.location.lng],
         x: 0,
         y: 0,
         radius: 6,

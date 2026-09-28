@@ -1,6 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import {useMemo, useState} from 'react'
 import {distanceKm} from '../lib/calculateCredibility'
 import type {FieldSighting} from './CreatureArchive'
 import './ConnectionBoard.css'
@@ -47,45 +45,22 @@ function buildConnections(primary: FieldSighting, sightings: FieldSighting[]): C
 }
 
 function ConnectionMap({primary, links, selectedId, onSelect}: {primary: FieldSighting; links: Connection[]; selectedId?: string; onSelect: (id: string) => void}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const layerRef = useRef<L.LayerGroup | null>(null)
-
-  useEffect(() => {
-    if (!containerRef.current) return
-    const map = L.map(containerRef.current, {zoomControl: false, scrollWheelZoom: false, dragging: true, attributionControl: true})
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 18,
-      crossOrigin: true,
-    }).addTo(map)
-    mapRef.current = map
-    layerRef.current = L.layerGroup().addTo(map)
-    return () => { map.remove(); mapRef.current = null; layerRef.current = null }
-  }, [])
-
-  useEffect(() => {
-    const map = mapRef.current
-    const layer = layerRef.current
-    if (!map || !layer || !primary.location) return
-    layer.clearLayers()
-    const source: L.LatLngExpression = [primary.location.lat, primary.location.lng]
-    const bounds: L.LatLngExpression[] = [source]
-    links.forEach((link) => {
-      if (!link.sighting.location) return
-      const target: L.LatLngExpression = [link.sighting.location.lat, link.sighting.location.lng]
-      bounds.push(target)
-      L.polyline([source, target], {color: link.kind === 'registered' ? '#42e8ff' : '#b6ff52', weight: link.sighting._id === selectedId ? 3 : 1.5, opacity: link.sighting._id === selectedId ? .95 : .58, dashArray: link.kind === 'possible' ? '6 7' : undefined}).addTo(layer)
-      const icon = L.divIcon({className: '', html: `<span class="connection-pin connection-pin--${link.kind}${link.sighting._id === selectedId ? ' connection-pin--selected' : ''}"></span>`, iconSize: [22, 22], iconAnchor: [11, 11]})
-      L.marker(target, {icon, title: link.sighting.region?.name ?? 'Reporte relacionado'}).on('click', () => onSelect(link.sighting._id)).addTo(layer)
-    })
-    const sourceIcon = L.divIcon({className: '', html: '<span class="connection-pin connection-pin--source">✦</span>', iconSize: [30, 30], iconAnchor: [15, 15]})
-    L.marker(source, {icon: sourceIcon, title: 'Reporte seleccionado'}).addTo(layer)
-    if (bounds.length > 1) map.fitBounds(L.latLngBounds(bounds as L.LatLngTuple[]), {padding: [65, 65], maxZoom: 12, animate: false})
-    else map.setView(source, 7, {animate: false})
-  }, [primary, links, selectedId, onSelect])
-
-  return <div ref={containerRef} className="connection-board__map" role="img" aria-label={`Mapa de ${links.length} reporte${links.length === 1 ? '' : 's'} relacionado${links.length === 1 ? '' : 's'}`} />
+  if (!primary.location) return <div className="connection-board__no-map">Este reporte no tiene coordenadas.</div>
+  const points = [{id: primary._id, lat: primary.location.lat, lng: primary.location.lng, kind: 'source' as const}, ...links.flatMap((link) => link.sighting.location ? [{id: link.sighting._id, lat: link.sighting.location.lat, lng: link.sighting.location.lng, kind: link.kind}] : [])]
+  const centerLat = points.reduce((sum, point) => sum + point.lat, 0) / points.length
+  const adjusted = points.map((point) => ({...point, x: point.lng * Math.cos(centerLat * Math.PI / 180), y: point.lat}))
+  const minX = Math.min(...adjusted.map((point) => point.x)), maxX = Math.max(...adjusted.map((point) => point.x))
+  const minY = Math.min(...adjusted.map((point) => point.y)), maxY = Math.max(...adjusted.map((point) => point.y))
+  const spanX = Math.max(maxX - minX, .04), spanY = Math.max(maxY - minY, .04)
+  const position = (point: typeof adjusted[number]) => ({x: 70 + ((point.x - minX) / spanX) * 860, y: 45 + ((maxY - point.y) / spanY) * 300})
+  const source = position(adjusted[0])
+  return <div className="connection-board__map" role="group" aria-label={`Diagrama de ${links.length} reporte${links.length === 1 ? '' : 's'} relacionado${links.length === 1 ? '' : 's'}`}>
+    <svg viewBox="0 0 1000 390" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+      {adjusted.slice(1).map((point) => { const target = position(point); const link = links.find((item) => item.sighting._id === point.id); return <line key={`line-${point.id}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} className={`connection-map-line connection-map-line--${link?.kind ?? 'possible'}`} /> })}
+      {adjusted.map((point) => { const coords = position(point); const active = point.id === selectedId; const label = point.kind === 'source' ? 'Reporte seleccionado' : links.find((link) => link.sighting._id === point.id)?.sighting.region?.name ?? 'Reporte relacionado'; return <g key={point.id} className={`connection-map-node connection-map-node--${point.kind}${active ? ' is-selected' : ''}`} transform={`translate(${coords.x} ${coords.y})`} role={point.kind === 'source' ? undefined : 'button'} tabIndex={point.kind === 'source' ? undefined : 0} aria-label={label} onClick={point.kind === 'source' ? undefined : () => onSelect(point.id)} onKeyDown={point.kind === 'source' ? undefined : (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(point.id) } }}><circle r={point.kind === 'source' ? 15 : 10} /><title>{label}</title>{point.kind === 'source' && <text textAnchor="middle" dy=".36em">✦</text>}</g> })}
+    </svg>
+    <span className="connection-board__map-credit">Proyección geográfica aproximada · sin mapa base</span>
+  </div>
 }
 
 export default function ConnectionBoard({sighting, sightings, creatureName, onOpenSighting}: {sighting: FieldSighting; sightings: FieldSighting[]; creatureName: string; onOpenSighting: (id: string) => void}) {
