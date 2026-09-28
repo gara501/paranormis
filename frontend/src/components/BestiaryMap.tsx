@@ -434,9 +434,9 @@ export default function BestiaryMap() {
       if (cancelled || !mapContainerRef.current) return
       leafletRef.current = L
       map = L.map(mapContainerRef.current, {center: [4.5709, -74.2973], zoom: 5, zoomControl: true})
-      const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd', maxZoom: 20, crossOrigin: true, updateWhenIdle: true,
+      const baseLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+        maxZoom: 19, crossOrigin: true, updateWhenIdle: true,
       }).addTo(map)
       baseLayer.once('load', () => setMapLoadState('ready'))
       loadTimeout = window.setTimeout(() => setMapLoadState((state) => state === 'loading' ? 'unavailable' : state), 9000)
