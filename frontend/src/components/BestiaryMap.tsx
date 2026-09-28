@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import type {PointerEvent as ReactPointerEvent} from 'react'
 import type * as Leaflet from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {PUBLIC_SIGHTING_FILTER, casePath} from '../lib/editorial'
@@ -10,6 +11,7 @@ import './BestiaryMap.css'
 import '../styles/paranormis.css'
 
 interface EnrichedSighting extends MapSignal {
+  title?: string
   date: string
   dateBasis?: 'event' | 'approximate_event' | 'record_date'
   locationPrecision?: 'exact' | 'locality' | 'region'
@@ -47,7 +49,7 @@ type ReceiverGraph = {
 }
 
 const SIGHTING_PROJECTION = `{
-  _id, city, timeOfDay,
+  _id, title, city, timeOfDay,
   location,
   date,
   dateBasis,
@@ -141,18 +143,38 @@ export default function BestiaryMap() {
   const dossierRef = useRef<HTMLElement>(null)
   const receiverRef = useRef<ReceiverGraph | null>(null)
   const randomTimeoutRef = useRef<number | null>(null)
+  const glitchTimeoutRef = useRef<number | null>(null)
+  const sheetDragRef = useRef<{pointerId: number; startY: number; lastY: number} | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'live'>('connecting')
   const [sightings, setSightings] = useState<EnrichedSighting[]>([])
   const [isScanning, setIsScanning] = useState(false)
   const [mapLoadState, setMapLoadState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [selectedSighting, setSelectedSighting] = useState<EnrichedSighting | null>(null)
-  const closeDossier = useCallback(() => setSelectedSighting(null), [])
+  const closeDossier = useCallback(() => {
+    setSelectedSighting(null)
+    setPreviewSighting(null)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('sighting')
+    url.searchParams.delete('report')
+    window.history.replaceState(null, '', url)
+  }, [])
   const [illustrationLoading, setIllustrationLoading] = useState(false)
   const [receiverOn, setReceiverOn] = useState(false)
   const [flashlightOn, setFlashlightOn] = useState(true)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [isGlitching, setIsGlitching] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
+  const [previewSighting, setPreviewSighting] = useState<EnrichedSighting | null>(null)
+  const [liveSighting, setLiveSighting] = useState<EnrichedSighting | null>(null)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [tutorialStep, setTutorialStep] = useState(0)
+  const [sheetExpanded, setSheetExpanded] = useState(false)
+  const tutorialSteps = [
+    {title: 'Linterna de campo', copy: 'Mueve la luz para revelar señales ocultas en el sector.'},
+    {title: 'Receptor EVP', copy: 'Activa el receptor para escuchar interferencias cerca de los reportes.'},
+    {title: 'Señal aleatoria', copy: 'Pide al radar que seleccione un expediente del archivo.'},
+  ]
+  const orderedSightings = useMemo(() => [...visibleSightings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), [visibleSightings])
   const [classVisibility, setClassVisibility] = useState<Record<EntityClass, boolean>>({
     cryptid: true,
     specter: true,
@@ -206,9 +228,16 @@ export default function BestiaryMap() {
     }
   }, [])
 
-  const focusSighting = useCallback((sighting: EnrichedSighting, duration = 1.25) => {
+  const focusSighting = useCallback((sighting: EnrichedSighting, duration = 1.25, syncUrl = true) => {
     setIllustrationLoading(Boolean(sighting.creature?.imageUrl))
     setSelectedSighting(sighting)
+    setPreviewSighting(null)
+    if (syncUrl) {
+      const url = new URL(window.location.href)
+      url.searchParams.set('sighting', sighting._id)
+      url.searchParams.delete('report')
+      if (url.search !== window.location.search) window.history.pushState({sighting: sighting._id}, '', url)
+    }
     const map = mapRef.current
     if (!map) return
     const target: Leaflet.LatLngExpression = [sighting.location.lat, sighting.location.lng]
@@ -221,6 +250,30 @@ export default function BestiaryMap() {
     const sighting = sightingsRef.current.get(id)
     if (sighting) focusSighting(sighting)
   }, [focusSighting])
+  const previewSignal = useCallback((id: string | null) => {
+    setPreviewSighting(id ? sightingsRef.current.get(id) ?? null : null)
+  }, [])
+
+  const finishTutorial = useCallback(() => {
+    setTutorialOpen(false)
+    try { window.localStorage.setItem('paranormis-map-tutorial-seen', '1') } catch { /* Storage may be disabled. */ }
+  }, [])
+
+  const onReveal = useCallback((_id: string) => {
+    if (reducedMotion) return
+    if ('vibrate' in navigator) navigator.vibrate(30)
+    setIsGlitching(true)
+    if (glitchTimeoutRef.current) window.clearTimeout(glitchTimeoutRef.current)
+    glitchTimeoutRef.current = window.setTimeout(() => setIsGlitching(false), 300)
+    const receiver = receiverRef.current
+    if (receiver && receiver.context.state !== 'closed') {
+      const now = receiver.context.currentTime
+      receiver.noiseGain.gain.setTargetAtTime(.16, now, .035)
+      window.setTimeout(() => {
+        if (receiverRef.current === receiver && receiver.context.state !== 'closed') receiver.noiseGain.gain.setTargetAtTime(.025, receiver.context.currentTime, .11)
+      }, 260)
+    }
+  }, [reducedMotion])
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -229,6 +282,47 @@ export default function BestiaryMap() {
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
   }, [])
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem('paranormis-map-tutorial-seen') !== '1') setTutorialOpen(true)
+    } catch { setTutorialOpen(true) }
+  }, [])
+
+  useEffect(() => {
+    if (!tutorialOpen) return
+    const onEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') finishTutorial() }
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  }, [tutorialOpen, finishTutorial])
+
+  useEffect(() => {
+    const onPopState = () => {
+      const id = new URLSearchParams(window.location.search).get('sighting') ?? new URLSearchParams(window.location.search).get('report')
+      if (!id) { setSelectedSighting(null); setPreviewSighting(null); return }
+      const sighting = sightingsRef.current.get(id)
+      if (sighting) focusSighting(sighting, 0, false)
+      else setSelectedSighting(null)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [focusSighting])
+
+  useEffect(() => {
+    if (!selectedSighting) return
+    const onArrow = (event: KeyboardEvent) => {
+      const target = event.target
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      const index = orderedSightings.findIndex((item) => item._id === selectedSighting._id)
+      if (index < 0 || !orderedSightings.length) return
+      event.preventDefault()
+      const nextIndex = (index + (event.key === 'ArrowRight' ? 1 : -1) + orderedSightings.length) % orderedSightings.length
+      focusSighting(orderedSightings[nextIndex])
+    }
+    window.addEventListener('keydown', onArrow)
+    return () => window.removeEventListener('keydown', onArrow)
+  }, [selectedSighting, orderedSightings, focusSighting])
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
@@ -250,6 +344,9 @@ export default function BestiaryMap() {
       map.on('mousemove', (event: Leaflet.LeafletMouseEvent) => {
         if (coordinateReadoutRef.current) coordinateReadoutRef.current.textContent = `${event.latlng.lat.toFixed(3)}° / ${event.latlng.lng.toFixed(3)}°`
       })
+      map.on('click', (event: Leaflet.LeafletMouseEvent) => {
+        if (coordinateReadoutRef.current) coordinateReadoutRef.current.textContent = `${event.latlng.lat.toFixed(3)}° / ${event.latlng.lng.toFixed(3)}°`
+      })
     }).catch((error) => {
       console.error('[Paranormis radar] No se pudo cargar el mapa:', error)
       setMapLoadState('unavailable')
@@ -259,6 +356,7 @@ export default function BestiaryMap() {
       cancelled = true
       window.clearTimeout(loadTimeout)
       if (randomTimeoutRef.current) window.clearTimeout(randomTimeoutRef.current)
+      if (glitchTimeoutRef.current) window.clearTimeout(glitchTimeoutRef.current)
       if (receiverRef.current) {
         receiverRef.current.context.close()
         receiverRef.current = null
@@ -334,7 +432,7 @@ export default function BestiaryMap() {
           upsertMarker(targetSighting)
           window.setTimeout(() => {
             const selected = sightingsRef.current.get(targetSighting._id)
-            if (selected) focusSighting(selected)
+            if (selected) focusSighting(selected, 1.25, false)
           }, 180)
         }
         publishSightings()
@@ -361,7 +459,15 @@ export default function BestiaryMap() {
           {id: update.documentId},
         )
         if (!isMounted) return
-        if (fresh?.location) upsertMarker(fresh)
+        const isNewSignal = Boolean(fresh?.location && !sightingsRef.current.has(fresh._id))
+        if (fresh?.location) {
+          upsertMarker(fresh)
+          if (isNewSignal && update.transition === 'appear') {
+            const enriched = {...fresh, entityClass: classForCreatureName(fresh.creature?.name)} as EnrichedSighting
+            setLiveSighting(enriched)
+            window.setTimeout(() => setLiveSighting((current) => current?._id === enriched._id ? null : current), 5500)
+          }
+        }
         else removeMarker(update.documentId)
         publishSightings()
       },
@@ -490,6 +596,30 @@ export default function BestiaryMap() {
     setClassVisibility((current) => ({...current, [entityClass]: !current[entityClass]}))
   }
 
+  function beginSheetDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!window.matchMedia('(max-width: 620px)').matches) return
+    sheetDragRef.current = {pointerId: event.pointerId, startY: event.clientY, lastY: event.clientY}
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function moveSheetDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (sheetDragRef.current?.pointerId === event.pointerId) sheetDragRef.current.lastY = event.clientY
+  }
+
+  function endSheetDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = sheetDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const delta = drag.lastY - drag.startY
+    if (delta > 70) closeDossier()
+    else if (delta < -45) setSheetExpanded(true)
+    else if (delta > 35) setSheetExpanded(false)
+    sheetDragRef.current = null
+  }
+
+  const selectedIndex = selectedSighting ? orderedSightings.findIndex((item) => item._id === selectedSighting._id) : -1
+  const previewPoint = previewSighting && mapInstance ? mapInstance.latLngToContainerPoint([previewSighting.location.lat, previewSighting.location.lng]) : null
+  const livePoint = liveSighting && mapInstance ? mapInstance.latLngToContainerPoint([liveSighting.location.lat, liveSighting.location.lng]) : null
+
   return (
     <main className={`bestiary-map-wrap${isGlitching ? ' bestiary-map-wrap--glitch' : ''}`}>
       <SiteHeader active="map" overlay />
@@ -518,6 +648,7 @@ export default function BestiaryMap() {
           <span className="bestiary-map__sector">Sector global</span>
         </div>
       </div>
+      <button className="bestiary-map__tutorial-trigger" type="button" onClick={() => { setTutorialStep(0); setTutorialOpen(true) }} aria-label="Abrir guía del radar">?</button>
       <div ref={mapContainerRef} className="bestiary-map__canvas" />
 
       {mapInstance && (
@@ -526,15 +657,25 @@ export default function BestiaryMap() {
           signals={sightings}
           visibleClasses={visibleClasses}
           selectedSignalId={selectedSighting?._id ?? null}
+          previewSignalId={previewSighting?._id ?? null}
           flashlightOn={flashlightOn}
           receiverActive={receiverOn}
           staticBurst={isGlitching}
           reducedMotion={reducedMotion}
           onSelect={selectSighting}
+          onPreview={previewSignal}
+          onReveal={onReveal}
           onDismiss={closeDossier}
           onReceiverLevel={onReceiverLevel}
         />
       )}
+
+      {previewSighting && previewPoint && !selectedSighting && <aside className="bestiary-map__preview" style={{left: Math.min(previewPoint.x + 16, window.innerWidth - 250), top: Math.max(96, previewPoint.y - 18)}} aria-live="polite">
+        <small>SEÑAL REVELADA</small><strong>{previewSighting.title ?? previewSighting.creature?.name ?? 'Entidad sin clasificar'}</strong><span>{previewSighting.creature?.name ?? 'Fenómeno sin clasificar'} · {previewSighting.city ?? previewSighting.region?.name ?? 'Lugar desconocido'}</span>
+        <button type="button" onClick={() => focusSighting(previewSighting)}>Abrir expediente ↗</button>
+      </aside>}
+      {liveSighting && livePoint && <span className="bestiary-map__live-ping" style={{left: livePoint.x, top: livePoint.y}} aria-hidden="true" />}
+      {liveSighting && <aside className="bestiary-map__live-toast" role="status" aria-live="polite"><span>⌁</span><p><strong>Nueva señal detectada</strong><small>{liveSighting.city ?? liveSighting.region?.name ?? 'Sector desconocido'}</small></p><button type="button" onClick={() => focusSighting(liveSighting)}>Ver ↗</button><button type="button" aria-label="Cerrar aviso" onClick={() => setLiveSighting(null)}>×</button></aside>}
 
       <aside className="bestiary-map__legend" aria-label="Leyenda y filtros de señales">
         <p className="bestiary-map__panel-label">Estado de la señal</p>
@@ -569,6 +710,8 @@ export default function BestiaryMap() {
           </li>
         ))}
       </ul>
+
+      {connectionStatus === 'live' && visibleSightings.length === 0 && <section className="bestiary-map__empty" aria-live="polite"><span aria-hidden="true">⌁</span><p>Silencio en este sector…</p><small>Los filtros actuales no muestran señales.</small><button type="button" onClick={() => setClassVisibility({cryptid: true, specter: true, entity: true, anomaly: true})}>Limpiar filtros</button><a href="/report">Reportar un caso ↗</a></section>}
 
       <div className="bestiary-map__instrument">
         <div className="bestiary-map__compass" aria-hidden="true"><span>N</span><b>✦</b></div>
@@ -617,9 +760,10 @@ export default function BestiaryMap() {
       </div>
 
       {selectedSighting && (
-        <aside ref={dossierRef} className="creature-dossier" aria-label={`Expediente de ${selectedSighting.creature?.name ?? 'entidad sin clasificar'}`} tabIndex={-1}>
-          <div className="creature-dossier__toolbar">
+        <aside ref={dossierRef} className={`creature-dossier${sheetExpanded ? ' creature-dossier--expanded' : ''}`} aria-label={`Expediente de ${selectedSighting.creature?.name ?? 'entidad sin clasificar'}`} tabIndex={-1}>
+          <div className="creature-dossier__toolbar" onPointerDown={beginSheetDrag} onPointerMove={moveSheetDrag} onPointerUp={endSheetDrag} onPointerCancel={endSheetDrag}>
             <span>Expediente del avistamiento</span>
+            <div className="creature-dossier__navigation"><button type="button" aria-label="Expediente anterior" disabled={selectedIndex <= 0} onClick={() => focusSighting(orderedSightings[selectedIndex - 1])}>←</button><span>{selectedIndex + 1} / {orderedSightings.length}</span><button type="button" aria-label="Expediente siguiente" disabled={selectedIndex < 0 || selectedIndex >= orderedSightings.length - 1} onClick={() => focusSighting(orderedSightings[selectedIndex + 1])}>→</button></div>
             <button type="button" className="creature-dossier__close" onClick={closeDossier} aria-label="Cerrar expediente"><span aria-hidden="true">×</span> Cerrar</button>
           </div>
           <div className="creature-dossier__image-wrap">
@@ -651,6 +795,9 @@ export default function BestiaryMap() {
           </div>
         </aside>
       )}
+      {tutorialOpen && <div className="map-tutorial-backdrop" role="presentation" onClick={finishTutorial}><section className="map-tutorial" role="dialog" aria-modal="true" aria-labelledby="map-tutorial-title" onClick={(event) => event.stopPropagation()}>
+        <span className="map-tutorial__kicker">GUÍA DE CAMPO · {tutorialStep + 1} / 3</span><h2 id="map-tutorial-title">{tutorialSteps[tutorialStep].title}</h2><p>{tutorialSteps[tutorialStep].copy}</p><div><button type="button" onClick={finishTutorial}>Saltar guía</button>{tutorialStep < tutorialSteps.length - 1 ? <button type="button" onClick={() => setTutorialStep((step) => step + 1)}>Siguiente →</button> : <button type="button" onClick={finishTutorial}>Comenzar</button>}</div>
+      </section></div>}
     </main>
   )
 }

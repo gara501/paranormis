@@ -8,11 +8,14 @@ interface ParanormalOverlayProps {
   signals: readonly MapSignal[]
   visibleClasses: ReadonlySet<EntityClass>
   selectedSignalId: string | null
+  previewSignalId: string | null
   flashlightOn: boolean
   receiverActive: boolean
   staticBurst: boolean
   reducedMotion: boolean
   onSelect: (signalId: string) => void
+  onPreview: (signalId: string | null) => void
+  onReveal: (signalId: string) => void
   onDismiss: () => void
   onReceiverLevel: (level: number, dt: number) => void
 }
@@ -202,6 +205,7 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
     let projectionDirty = true
     let signalSource: readonly MapSignal[] | null = null
     let entries: RuntimeSignal[] = []
+    const revealedIds = new Set<string>()
     let pointerX = 0
     let pointerY = 0
     let pointerKnown = false
@@ -277,7 +281,12 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
 
     function onPointerMove(event: PointerEvent) {
       updatePointer(event)
+      prepareSignals()
       updateProjection()
+      if (event.pointerType !== 'touch') {
+        const hovered = hitTest(pointerX, pointerY)
+        latest.current.onPreview(hovered && hovered.reveal > .12 ? hovered._id : null)
+      }
       if (!latest.current.flashlightOn) {
         const rect = container.getBoundingClientRect()
         container.style.cursor = hitTest(event.clientX - rect.left, event.clientY - rect.top) ? 'pointer' : ''
@@ -285,8 +294,10 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
     }
 
     function onPointerLeave() {
+      if (window.matchMedia('(pointer: coarse)').matches) return
       pointerKnown = false
       container.style.cursor = ''
+      latest.current.onPreview(null)
       schedule()
     }
 
@@ -295,8 +306,12 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
       updateProjection()
       const signal = hitTest(event.containerPoint.x, event.containerPoint.y)
       if (signal) {
-        latest.current.onSelect(signal._id)
+        if (window.matchMedia('(pointer: coarse)').matches) {
+          if (latest.current.selectedSignalId === signal._id || latest.current.previewSignalId === signal._id) latest.current.onSelect(signal._id)
+          else latest.current.onPreview(signal._id)
+        } else latest.current.onSelect(signal._id)
       } else {
+        latest.current.onPreview(null)
         latest.current.onDismiss()
       }
     }
@@ -419,6 +434,11 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
             if (Math.abs(distanceFromCenter - waveRadius) < 5 + dt * pulseReach / 5) signal.reveal = 1
           }
           signal.reveal = Math.max(0, signal.reveal - dt * 0.45)
+        }
+        const lightDistance = Math.hypot(signal.x - (pointerKnown ? pointerX : width / 2), signal.y - (pointerKnown ? pointerY : height / 2))
+        if (latest.current.flashlightOn && pointerKnown && signal.reveal > .12 && lightDistance < signal.radius * 2 && !revealedIds.has(signal._id)) {
+          revealedIds.add(signal._id)
+          latest.current.onReveal(signal._id)
         }
 
         // Keep every report legible, including records without a credibility score.
