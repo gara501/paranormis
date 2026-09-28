@@ -9,4 +9,5 @@ export interface MapSignal {
   credibilityIndex: number | null
   status: string
   entityClass: EntityClass
+  testimonyAudioUrl?: string
 }

@@ -46,7 +46,13 @@ type ReceiverGraph = {
   toneGain: GainNode
   clickBuffer: AudioBuffer
   clickRemainder: number
+  spatialVoices: Map<string, SpatialVoice>
+  audioBuffers: Map<string, AudioBuffer>
+  audioLoading: Set<string>
 }
+
+type SpatialVoice = {source: AudioBufferSourceNode; gain: GainNode; panner: StereoPannerNode; stopTimer: number | null}
+type NearbyAudioSignal = {id: string; url?: string; proximity: number; pan: number}
 
 const SIGHTING_PROJECTION = `{
   _id, title, city, timeOfDay,
@@ -112,6 +118,50 @@ function buildWhiteNoise(context: AudioContext, seconds: number): AudioBuffer {
   const samples = buffer.getChannelData(0)
   for (let i = 0; i < samples.length; i += 1) samples[i] = Math.random() * 2 - 1
   return buffer
+}
+
+function updateSpatialAudio(receiver: ReceiverGraph, signals: readonly NearbyAudioSignal[]) {
+  const now = receiver.context.currentTime
+  const desired = signals.filter((signal) => signal.url && signal.proximity > 0).slice(0, 3)
+  const desiredIds = new Set(desired.map((signal) => signal.id))
+  for (const [id, voice] of receiver.spatialVoices) {
+    if (!desiredIds.has(id)) {
+      voice.gain.gain.setTargetAtTime(0, now, .12)
+      if (voice.stopTimer === null) voice.stopTimer = window.setTimeout(() => {
+        if (receiver.spatialVoices.get(id) !== voice) return
+        try { voice.source.stop() } catch { /* The source may already have ended. */ }
+        receiver.spatialVoices.delete(id)
+      }, 520)
+    }
+  }
+  for (const signal of desired) {
+    const existing = receiver.spatialVoices.get(signal.id)
+    if (existing) {
+      if (existing.stopTimer !== null) { window.clearTimeout(existing.stopTimer); existing.stopTimer = null }
+      existing.gain.gain.setTargetAtTime(.16 * signal.proximity, now, .14)
+      existing.panner.pan.setTargetAtTime(signal.pan, now, .12)
+      continue
+    }
+    if (receiver.spatialVoices.size + receiver.audioLoading.size >= 3 || !signal.url || receiver.audioLoading.has(signal.id)) continue
+    receiver.audioLoading.add(signal.id)
+    const loadBuffer = receiver.audioBuffers.get(signal.id)
+      ? Promise.resolve(receiver.audioBuffers.get(signal.id)!)
+      : fetch(signal.url).then((response) => { if (!response.ok) throw new Error('No se pudo descargar el audio'); return response.arrayBuffer() }).then((data) => receiver.context.decodeAudioData(data)).then((buffer) => { receiver.audioBuffers.set(signal.id, buffer); return buffer })
+    void loadBuffer.then((buffer) => {
+      if (receiver.context.state === 'closed' || receiver.spatialVoices.size >= 3) return
+      const source = receiver.context.createBufferSource()
+      const gain = receiver.context.createGain()
+      const panner = receiver.context.createStereoPanner()
+      source.buffer = buffer
+      source.loop = true
+      gain.gain.value = 0
+      panner.pan.value = signal.pan
+      source.connect(gain).connect(panner).connect(receiver.master)
+      source.start()
+      gain.gain.setTargetAtTime(.16 * signal.proximity, receiver.context.currentTime, .18)
+      receiver.spatialVoices.set(signal.id, {source, gain, panner, stopTimer: null})
+    }).catch((error) => console.warn('[Paranormis radar] No se pudo abrir el audio del testimonio:', error)).finally(() => receiver.audioLoading.delete(signal.id))
+  }
 }
 
 function EntitySigil({entityClass}: {entityClass: EntityClass}) {
@@ -200,7 +250,7 @@ export default function BestiaryMap() {
     setSightings([...sightingsRef.current.values()])
   }, [])
 
-  const onReceiverLevel = useCallback((level: number, dt: number) => {
+  const onReceiverLevel = useCallback((level: number, dt: number, nearby: readonly NearbyAudioSignal[] = []) => {
     const meter = emfMeterRef.current
     if (meter) {
       for (let index = 0; index < meter.children.length; index += 1) {
@@ -212,8 +262,10 @@ export default function BestiaryMap() {
     const receiver = receiverRef.current
     if (!receiver || receiver.context.state === 'closed') return
     const now = receiver.context.currentTime
-    receiver.noiseGain.gain.setTargetAtTime(0.015 + level * 0.09, now, 0.04)
+    const presence = nearby.reduce((strongest, signal) => Math.max(strongest, signal.proximity), 0)
+    receiver.noiseGain.gain.setTargetAtTime((0.015 + level * 0.09) * (1 - presence * .62), now, 0.06)
     receiver.toneGain.gain.setTargetAtTime(level > 0.75 ? (level - 0.75) * 0.25 : 0, now, 0.05)
+    updateSpatialAudio(receiver, nearby)
     receiver.clickRemainder += dt * level * 30
     if (receiver.clickRemainder >= 1) {
       receiver.clickRemainder -= 1
@@ -376,7 +428,7 @@ export default function BestiaryMap() {
     if (!L) return
 
     function enrich(raw: SightingFromSanity): EnrichedSighting {
-      return {...raw, entityClass: classForCreatureName(raw.creature?.name)}
+      return {...raw, testimonyAudioUrl: raw.testimonyAudio?.url, entityClass: classForCreatureName(raw.creature?.name)}
     }
 
     function upsertMarker(raw: SightingFromSanity) {
@@ -588,6 +640,9 @@ export default function BestiaryMap() {
       toneGain,
       clickBuffer: buildWhiteNoise(context, 0.02),
       clickRemainder: 0,
+      spatialVoices: new Map(),
+      audioBuffers: new Map(),
+      audioLoading: new Set(),
     }
     setReceiverOn(true)
   }

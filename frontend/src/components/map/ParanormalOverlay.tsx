@@ -17,7 +17,7 @@ interface ParanormalOverlayProps {
   onPreview: (signalId: string | null) => void
   onReveal: (signalId: string) => void
   onDismiss: () => void
-  onReceiverLevel: (level: number, dt: number) => void
+  onReceiverLevel: (level: number, dt: number, nearby: readonly {id: string; url?: string; proximity: number; pan: number}[]) => void
 }
 
 interface RuntimeSignal extends MapSignal {
@@ -528,15 +528,18 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
       const x = pointerKnown ? pointerX : width / 2
       const y = pointerKnown ? pointerY : height / 2
       let closest = Number.POSITIVE_INFINITY
+      const nearby: {id: string; url?: string; proximity: number; pan: number}[] = []
       for (const signal of entries) {
         if (!latest.current.visibleClasses.has(signal.entityClass)) continue
-        const credibility = clamp(signal.credibilityIndex ?? 0, 0, 100)
-        const distance = Math.hypot(signal.x - x, signal.y - y) / (0.5 + credibility / 200)
+        const distance = Math.hypot(signal.x - x, signal.y - y)
         if (distance < closest) closest = distance
+        const proximity = smooth(clamp((180 - distance) / 150, 0, 1))
+        if (signal.testimonyAudioUrl && proximity > 0) nearby.push({id: signal._id, url: signal.testimonyAudioUrl, proximity, pan: clamp((signal.x / Math.max(1, width)) * 2 - 1, -1, 1)})
       }
       const target = Number.isFinite(closest) ? Math.pow(clamp(1 - closest / 200, 0, 1), 1.4) : 0
       receiverValue += (target - receiverValue) * clamp(dt * 6, 0, 1)
-      latest.current.onReceiverLevel(receiverValue, dt)
+      nearby.sort((a, b) => b.proximity - a.proximity)
+      latest.current.onReceiverLevel(receiverValue, dt, nearby.slice(0, 3))
     }
 
     function draw(time: number) {
