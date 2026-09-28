@@ -5,5 +5,10 @@
 @media(max-width:520px){.site-header__sigil{width:34px;height:34px}.site-header__brand-copy{font-size:.83rem}.site-header__brand-copy small{font-size:.53rem}.site-header__classification{display:none}.site-header__nav a{gap:.27rem;font-size:.69rem}.site-header__nav a span{font-size:.56rem}}
 @media(max-width:370px){.site-header__nav a span{display:none}.site-header__nav a{font-size:.65rem}}
 
+.site-header__nav .site-header__nav-short{display:none;color:inherit;font-family:inherit;font-size:inherit}
+.site-header__nav .site-header__nav-full{color:inherit;font-family:inherit;font-size:inherit}
+@media(max-width:520px){.site-header__nav{gap:0}.site-header__nav a{gap:.2rem;min-width:0;padding:0 .1rem;font-size:.62rem;letter-spacing:0}.site-header__nav a .site-header__nav-full{display:none}.site-header__nav .site-header__nav-short{display:inline}.site-header__nav a>span:first-child{font-size:.5rem}}
+@media(max-width:370px){.site-header__nav a>span:first-child{display:none}}
+
 
 

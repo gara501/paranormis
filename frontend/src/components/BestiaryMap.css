@@ -105,3 +105,24 @@
   .bestiary-map__archive-link,.bestiary-map__explore,.bestiary-map__receiver,.bestiary-map__report-link,.bestiary-map__flashlight { min-height:34px; padding:.42rem .55rem; font-size:.75rem; }
   .bestiary-map__accessible-list:focus-within { top:4.8rem; left:.7rem; }
 }
+
+/* Keep mobile map actions tucked away until requested. */
+.bestiary-map__menu-toggle{display:none}
+@media(max-width:620px){
+  .bestiary-map__menu-toggle{position:absolute;z-index:1100;top:216px;right:.7rem;display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--hud-line);border-radius:50%;background:rgba(12,12,11,.96);box-shadow:0 5px 18px #0009;color:var(--hud-text);font:500 1.2rem var(--hud-mono);cursor:pointer}
+  .bestiary-map__menu-toggle:hover,.bestiary-map__menu-toggle:focus-visible{border-color:var(--hud-alert);color:var(--hud-alert);outline:2px solid var(--hud-alert);outline-offset:2px}
+  .bestiary-map__explore-controls{top:266px;right:.7rem;width:min(14.2rem,calc(100vw - 1.4rem));max-height:min(38vh,300px);overflow-y:auto;overscroll-behavior:contain;gap:.3rem;padding:.45rem;background:rgba(9,10,9,.96);border:1px solid var(--hud-line);box-shadow:0 12px 30px #000b}
+  .bestiary-map__explore-controls[data-mobile-open="false"]{display:none}
+  .bestiary-map__explore-controls[data-mobile-open="true"]{display:grid}
+  .bestiary-map__archive-link,.bestiary-map__explore,.bestiary-map__receiver,.bestiary-map__report-link,.bestiary-map__flashlight{min-height:36px;padding:.4rem .5rem;font-size:.63rem;letter-spacing:.045em}
+  .bestiary-map__legend{left:.7rem;bottom:.7rem;width:min(12rem,calc(48vw));max-height:29vh;padding:.48rem .55rem;font-size:.61rem;line-height:1.55}
+  .bestiary-map__panel-label{font-size:.54rem;letter-spacing:.1em}
+  .signal-status{font-size:.63rem;line-height:1.45}
+  .bestiary-map__panel-label.entity-filter-heading{margin-top:.35rem;padding-top:.3rem}
+  .entity-class-filters{gap:.2rem}
+  .entity-class-filter{gap:.2rem;padding:.27rem .23rem;font-size:.54rem}
+  .entity-class-filter b{display:none}
+  .entity-sigil{width:.78rem;height:.78rem}
+  .leaflet-control-zoom{margin-top:7.7rem!important}
+  .bestiary-map__scan{right:.7rem;bottom:.7rem;padding:.48rem .58rem;font-size:.59rem}
+}

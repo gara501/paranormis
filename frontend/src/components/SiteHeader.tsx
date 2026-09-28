@@ -11,10 +11,10 @@ export default function SiteHeader({active, overlay = false}: {active: Section; 
         <span className="site-header__brand-copy">PARANORMIS<small>INVESTIGACIÓN PARANORMAL · UNIDAD DE CAMPO</small></span>
       </a>
       <nav className="site-header__nav" aria-label="Navegación principal">
-        <a href="/map" aria-current={active === 'map' ? 'page' : undefined}><span>01</span> Radar de campo</a>
-        <a href="/bestiary" aria-current={active === 'bestiary' ? 'page' : undefined}><span>02</span> Archivo</a>
-        <a href="/explorar" aria-current={active === 'discover' ? 'page' : undefined}><span>03</span> Explorar casos</a>
-        <a href="/canales" aria-current={active === 'channels' ? 'page' : undefined}><span>04</span> Canales</a>
+        <a href="/map" aria-label="Radar de campo" aria-current={active === 'map' ? 'page' : undefined}><span aria-hidden="true">01</span><span className="site-header__nav-full" aria-hidden="true">Radar de campo</span><span className="site-header__nav-short" aria-hidden="true">Radar</span></a>
+        <a href="/bestiary" aria-label="Archivo" aria-current={active === 'bestiary' ? 'page' : undefined}><span aria-hidden="true">02</span><span className="site-header__nav-full" aria-hidden="true">Archivo</span><span className="site-header__nav-short" aria-hidden="true">Archivo</span></a>
+        <a href="/explorar" aria-label="Explorar casos" aria-current={active === 'discover' ? 'page' : undefined}><span aria-hidden="true">03</span><span className="site-header__nav-full" aria-hidden="true">Explorar casos</span><span className="site-header__nav-short" aria-hidden="true">Explorar</span></a>
+        <a href="/canales" aria-label="Canales" aria-current={active === 'channels' ? 'page' : undefined}><span aria-hidden="true">04</span><span className="site-header__nav-full" aria-hidden="true">Canales</span><span className="site-header__nav-short" aria-hidden="true">Canales</span></a>
       </nav>
       <span className="site-header__classification">PR—01 <i /> EN LÍNEA</span>
     </header>

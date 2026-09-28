@@ -148,6 +148,7 @@ export default function BestiaryMap() {
   const [illustrationLoading, setIllustrationLoading] = useState(false)
   const [receiverOn, setReceiverOn] = useState(false)
   const [flashlightOn, setFlashlightOn] = useState(true)
+  const [actionsOpen, setActionsOpen] = useState(false)
   const [isGlitching, setIsGlitching] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const [classVisibility, setClassVisibility] = useState<Record<EntityClass, boolean>>({
@@ -369,6 +370,26 @@ export default function BestiaryMap() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [selectedSighting, closeDossier])
 
+  useEffect(() => {
+    if (!actionsOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActionsOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [actionsOpen])
+
+  useEffect(() => {
+    if (!actionsOpen) return
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      if (!(event.target instanceof Element)) return
+      if (event.target.closest('#map-actions-panel, #map-actions-toggle')) return
+      setActionsOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePress)
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePress)
+  }, [actionsOpen])
+
   function scanForSignals() {
     const map = mapRef.current
     if (!map || visibleSightings.length === 0) return
@@ -542,19 +563,30 @@ export default function BestiaryMap() {
         <span className="bestiary-map__scan-icon" aria-hidden="true">⌁</span>
         {isScanning ? 'Triangulando…' : 'Rastrear señales'}
       </button>
-      <div className="bestiary-map__explore-controls">
+      <button
+        id="map-actions-toggle"
+        className="bestiary-map__menu-toggle"
+        type="button"
+        aria-expanded={actionsOpen}
+        aria-controls="map-actions-panel"
+        aria-label={actionsOpen ? 'Cerrar acciones del mapa' : 'Abrir acciones del mapa'}
+        onClick={() => setActionsOpen((open) => !open)}
+      >
+        <span aria-hidden="true">{actionsOpen ? '×' : '☰'}</span>
+      </button>
+      <div id="map-actions-panel" className="bestiary-map__explore-controls" data-mobile-open={actionsOpen}>
         <a className="bestiary-map__archive-link" href="/bestiary"><span aria-hidden="true">✦</span> Abrir el archivo <span aria-hidden="true">↗</span></a>
         <a className="bestiary-map__report-link" href="/explorar"><span aria-hidden="true">⌖</span> Buscar por ciudad</a>
-        <button type="button" className="bestiary-map__explore" onClick={discoverRandomSignal} disabled={visibleSightings.length === 0}>
+        <button type="button" className="bestiary-map__explore" onClick={() => { discoverRandomSignal(); setActionsOpen(false) }} disabled={visibleSightings.length === 0}>
           <span aria-hidden="true">✦</span> Señal aleatoria
         </button>
-        <button type="button" className="bestiary-map__flashlight" onClick={() => setFlashlightOn((value) => !value)} aria-pressed={flashlightOn}>
+        <button type="button" className="bestiary-map__flashlight" onClick={() => { setFlashlightOn((value) => !value); setActionsOpen(false) }} aria-pressed={flashlightOn}>
           <span aria-hidden="true">◉</span> Linterna: {flashlightOn ? 'encendida' : 'apagada'}
         </button>
         <button
           type="button"
           className={`bestiary-map__receiver ${receiverOn ? 'bestiary-map__receiver--on' : ''}`}
-          onClick={() => void toggleReceiver()}
+          onClick={() => { void toggleReceiver(); setActionsOpen(false) }}
           aria-pressed={receiverOn}
           disabled={!audioConstructor()}
           title={!audioConstructor() ? 'Este navegador no ofrece Web Audio' : 'Activar o silenciar el receptor EVP'}

@@ -2,10 +2,10 @@
 import Layout from '../layouts/EditorialLayout.astro'
 
 const channels = [
-  {handle: 'chimbadas.raras', url: 'https://www.tiktok.com/@chimbadas.raras'},
-  {handle: 'historiasyespantos', url: 'https://www.tiktok.com/@historiasyespantos'},
-  {handle: 'anapaolaamor', url: 'https://www.tiktok.com/@anapaolaamor'},
-  {handle: 'unlugaroscuro666', url: 'https://www.tiktok.com/@unlugaroscuro666'},
+  {handle: 'chimbadas.raras', url: 'https://www.tiktok.com/@chimbadas.raras', platform: 'tiktok', label: 'TikTok'},
+  {handle: 'historiasyespantos', url: 'https://www.tiktok.com/@historiasyespantos', platform: 'tiktok', label: 'TikTok'},
+  {handle: 'anapaolaamor', url: 'https://www.tiktok.com/@anapaolaamor', platform: 'tiktok', label: 'TikTok'},
+  {handle: 'unlugaroscuro666', url: 'https://www.tiktok.com/@unlugaroscuro666', platform: 'tiktok', label: 'TikTok'},
 ]
 ---
 
@@ -25,11 +25,11 @@ const channels = [
       <span class="explore-channel-stamp" aria-hidden="true">SINTONÍA<br/>ABIERTA</span>
     </div>
     <div class="explore-channels">
-      {channels.map(({handle, url}, index) => (
-        <a class="explore-channel-card" href={url} target="_blank" rel="noopener noreferrer">
+      {channels.map(({handle, url, platform, label}, index) => (
+        <a class={`explore-channel-card explore-channel-card--${platform}`} href={url} target="_blank" rel="noopener noreferrer">
           <span class="channel-orbit" aria-hidden="true"><i/><b>✳</b></span>
           <span class="explore-channel-card__top">
-            <span>SEÑAL {String(index + 1).padStart(2, '0')} / TIKTOK</span>
+            <span>SEÑAL {String(index + 1).padStart(2, '0')} / {label.toLocaleUpperCase('es')}</span>
             <span class="channel-live"><i/> DIRECTORIO</span>
           </span>
           <strong>@{handle}</strong>
