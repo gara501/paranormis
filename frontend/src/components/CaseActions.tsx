@@ -8,13 +8,13 @@ export default function CaseActions({id,title,text}:{id:string;title:string;text
   const [message,setMessage]=useState('')
   const [speaking,setSpeaking]=useState(false)
   const [audio,setAudio]=useState(false)
-  const [audioUrl,setAudioUrl]=useState<string>()
+  const [audioTracks,setAudioTracks]=useState<{title:string;audioUrl:string}[]>([])
   const [place,setPlace]=useState('Archivo de Colombia')
   useEffect(()=>{
     const sync=()=>setSaved(readFavorites().includes(id))
     sync(); setAudio('speechSynthesis' in window)
     let active=true
-    fetch(`/api/case-audio?id=${encodeURIComponent(id)}`).then(response=>response.ok?response.json():null).then(data=>{if(!active)return;if(typeof data?.audioUrl==='string')setAudioUrl(data.audioUrl);if(typeof data?.place==='string')setPlace(data.place)}).catch(()=>{})
+    fetch(`/api/case-audio?id=${encodeURIComponent(id)}`).then(response=>response.ok?response.json():null).then(data=>{if(!active)return;const tracks=Array.isArray(data?.testimonyAudios)?data.testimonyAudios.filter((track:any)=>typeof track?.audioUrl==='string').map((track:any)=>({title:typeof track.title==='string'?track.title:'Grabación del expediente',audioUrl:track.audioUrl})):[];if(typeof data?.audioUrl==='string')tracks.unshift({title:'Audio del testimonio',audioUrl:data.audioUrl});setAudioTracks(tracks);if(typeof data?.place==='string')setPlace(data.place)}).catch(()=>{})
     window.addEventListener('storage',sync)
     const stop=()=>{ if(document.hidden) {window.speechSynthesis?.cancel();setSpeaking(false)} }
     document.addEventListener('visibilitychange',stop)
@@ -68,6 +68,6 @@ export default function CaseActions({id,title,text}:{id:string;title:string;text
     <button type="button" onClick={save} aria-pressed={saved}>{saved?'★ Guardado':'☆ Guardar expediente'}</button>
     <button type="button" onClick={share}>Compartir enlace ↗</button>
     <button type="button" onClick={downloadCard}>Descargar tarjeta</button>
-    {audioUrl ? <div className="editorial-audio"><span className="editorial-note">Narración del archivo</span><audio controls preload="metadata" style={{width:'min(100%, 380px)',height:42,accentColor:'#d63b35'}} src={audioUrl}>Tu navegador no puede reproducir este audio.</audio></div> : audio && <button type="button" onClick={narrate} aria-pressed={speaking}>{speaking?'■ Detener lectura':'▷ Escuchar relato'}</button>}
-  </div><p className="editorial-note">Favoritos locales · {audioUrl?'Audio narrado por el archivo.':'Lectura opcional con la voz del dispositivo.'}</p><p role="status" className="editorial-note">{message}</p></div>
+    {audioTracks.length ? audioTracks.map((track,index)=><div className="editorial-audio" key={`${track.audioUrl}-${index}`}><span className="editorial-note">{track.title}</span><audio controls preload="metadata" style={{width:'min(100%, 380px)',height:42,accentColor:'#d63b35'}} src={track.audioUrl}>Tu navegador no puede reproducir este audio.</audio></div>) : audio && <button type="button" onClick={narrate} aria-pressed={speaking}>{speaking?'■ Detener lectura':'▷ Escuchar relato'}</button>}
+  </div><p className="editorial-note">Favoritos locales · {audioTracks.length?'Grabación adjunta al expediente.':'Lectura opcional con la voz del dispositivo.'}</p><p role="status" className="editorial-note">{message}</p></div>
 }

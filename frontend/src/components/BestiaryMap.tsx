@@ -28,6 +28,7 @@ interface EnrichedSighting extends MapSignal {
     originalFilename?: string
     mimeType?: string
   } | null
+  testimonyAudios?: {title: string; url?: string; originalFilename?: string; mimeType?: string}[]
   creature: {
     _id: string
     name: string
@@ -73,6 +74,7 @@ const SIGHTING_PROJECTION = `{
   status,
   freeformDescription,
   "testimonyAudio": testimonyAudio.asset->{url, originalFilename, mimeType},
+  "testimonyAudios": testimonyAudios[]{title,"url":file.asset->url,"originalFilename":file.asset->originalFilename,"mimeType":file.asset->mimeType},
   "creature": creature->{_id, name, threatLevel, physicalDescription, distinctiveTraits, folkloreOrigin, "imageUrl": coalesce(image.asset->url, archiveIllustration.asset->url), "imageAlt": image.alt},
   "region": region->{name, country, folkloreHistory}
 }`
@@ -477,7 +479,7 @@ export default function BestiaryMap() {
     if (!L) return
 
     function enrich(raw: SightingFromSanity): EnrichedSighting {
-      return {...raw, testimonyAudioUrl: raw.testimonyAudio?.url, entityClass: classForCreatureName(raw.creature?.name)}
+      return {...raw, testimonyAudioUrl: raw.testimonyAudio?.url ?? raw.testimonyAudios?.find((track) => track.url)?.url, entityClass: classForCreatureName(raw.creature?.name)}
     }
 
     function upsertMarker(raw: SightingFromSanity) {
@@ -956,12 +958,22 @@ export default function BestiaryMap() {
             {selectedSighting.creature?.distinctiveTraits?.length ? <div className="creature-dossier__traits"><p>Rasgos registrados</p>{selectedSighting.creature.distinctiveTraits.slice(0, 5).map((trait) => <span key={trait}>{trait}</span>)}</div> : null}
             <blockquote>{selectedSighting.freeformDescription}</blockquote>
             {selectedSighting.sourceUrl && selectedSighting.sourceTitle && <p className="creature-dossier__origin"><strong>Fuente documentada:</strong> <a href={selectedSighting.sourceUrl} target="_blank" rel="noopener noreferrer">{selectedSighting.sourceTitle} ↗</a>. Esta referencia documenta el relato; no confirma por sí sola el fenómeno.</p>}
-            {selectedSighting.testimonyAudio?.url && (
-              <section className="creature-dossier__testimony" aria-label="Testimonio de audio del testigo">
-                <p><span aria-hidden="true">◉</span> Grabación EVP recuperada</p>
-                <audio controls preload="metadata"><source src={selectedSighting.testimonyAudio.url} type={selectedSighting.testimonyAudio.mimeType} />Tu navegador no puede reproducir este audio.</audio>
-                {selectedSighting.testimonyAudio.originalFilename && <small>{selectedSighting.testimonyAudio.originalFilename}</small>}
-              </section>
+            {(selectedSighting.testimonyAudios?.length || selectedSighting.testimonyAudio?.url) && (
+              <div className="creature-dossier__testimony-list" aria-label="Grabaciones de audio del expediente">
+                {selectedSighting.testimonyAudios?.length ? selectedSighting.testimonyAudios.map((track, index) => track.url && (
+                  <section className="creature-dossier__testimony" key={`${track.url}-${index}`}>
+                    <p><span aria-hidden="true">◉</span> {track.title}</p>
+                    <audio controls preload="metadata"><source src={track.url} type={track.mimeType} />Tu navegador no puede reproducir este audio.</audio>
+                    {track.originalFilename && <small>{track.originalFilename}</small>}
+                  </section>
+                )) : selectedSighting.testimonyAudio?.url && (
+                  <section className="creature-dossier__testimony">
+                    <p><span aria-hidden="true">◉</span> Grabación EVP recuperada</p>
+                    <audio controls preload="metadata"><source src={selectedSighting.testimonyAudio.url} type={selectedSighting.testimonyAudio.mimeType} />Tu navegador no puede reproducir este audio.</audio>
+                    {selectedSighting.testimonyAudio.originalFilename && <small>{selectedSighting.testimonyAudio.originalFilename}</small>}
+                  </section>
+                )}
+              </div>
             )}
             {selectedSighting.creature?.folkloreOrigin && <p className="creature-dossier__origin">Nota del archivo: {selectedSighting.creature.folkloreOrigin}</p>}
             {selectedSighting.creature?._id && <a className="creature-dossier__archive-link" href={`/bestiary#${encodeURIComponent(selectedSighting.creature._id)}`}>Ver perfil completo <span aria-hidden="true">↗</span></a>}

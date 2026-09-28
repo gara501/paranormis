@@ -172,6 +172,23 @@ export default defineType({
       description:
         'Optional short field recording for this exact sighting. Keep clips concise; use a streaming service for long-form recordings.',
     }),
+    defineField({
+      name: 'testimonyAudios',
+      title: 'Grabaciones del expediente',
+      type: 'array',
+      of: [defineArrayMember({
+        type: 'object',
+        fields: [
+          defineField({name: 'title', title: 'Título de la grabación', type: 'string', validation: (Rule) => Rule.required().max(100)}),
+          defineField({
+            name: 'file', title: 'Archivo de audio', type: 'file',
+            options: {accept: 'audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/webm'},
+            validation: (Rule) => Rule.required(),
+          }),
+        ],
+      })],
+      description: 'Una o más grabaciones adjuntas a este expediente. La existencia del audio no verifica el fenómeno descrito.',
+    }),
 
     defineField({
       name: 'observedTraits',
