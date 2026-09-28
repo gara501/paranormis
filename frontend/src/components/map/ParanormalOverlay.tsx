@@ -10,6 +10,7 @@ interface ParanormalOverlayProps {
   selectedSignalId: string | null
   previewSignalId: string | null
   flashlightOn: boolean
+  witchingHour: boolean
   receiverActive: boolean
   staticBurst: boolean
   reducedMotion: boolean
@@ -445,13 +446,14 @@ export default function ParanormalOverlay(props: ParanormalOverlayProps) {
         const r = clamp(9 + latest.current.map.getZoom() * 0.4, 10, 13)
         signal.radius = r
         const color = signal.signalColor
-        const badgeRadius = r + 5
+        const nightPulse = latest.current.witchingHour && signal.timeOfDay === 'night'
+        const badgeRadius = r + 5 + (nightPulse && !reducedMotion ? 1 + Math.sin(elapsed * 3 + signal.phase) * 1.5 : 0)
         context.save()
         context.fillStyle = 'rgba(9,9,9,.96)'
         context.strokeStyle = color
         context.lineWidth = 1.5
         context.shadowColor = color
-        context.shadowBlur = 5 + signal.reveal * 9
+        context.shadowBlur = 5 + signal.reveal * 9 + (nightPulse ? 7 : 0)
         context.beginPath()
         context.arc(signal.x, signal.y, badgeRadius, 0, TAU)
         context.fill()

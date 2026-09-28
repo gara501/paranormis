@@ -1,0 +1,44 @@
+---
+export const prerender = false
+import EditorialLayout from '../../layouts/EditorialLayout.astro'
+import {sanityClient} from '../../lib/sanity'
+
+type RoutePage = {title: string; city: string; description: string; estimatedMinutes: number; coverImage?: {url?: string; alt?: string}; stops: {note?: string; sighting?: {title?: string; city?: string; location?: {lat: number; lng: number}} | null}[]}
+let route: RoutePage | null = null
+let failed = false
+try {
+  route = await sanityClient.fetch<RoutePage | null>(`*[_type == "route" && slug.current == $slug && !(_id in path("drafts.**"))][0]{title,city,description,estimatedMinutes,"coverImage":{"url":coverImage.asset->url,"alt":coverImage.alt},stops[]{note,"sighting":sighting->{title,city,location}}}`, {slug: Astro.params.slug})
+} catch { failed = true }
+Astro.response.headers.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600')
+if (!route) Astro.response.status = failed ? 503 : 404
+const stops = (route?.stops ?? []).filter((stop) => stop.sighting?.location)
+const coordinates = stops.map((stop) => `${stop.sighting!.location!.lat},${stop.sighting!.location!.lng}`)
+const googleMaps = new URL('https://www.google.com/maps/dir/')
+if (coordinates.length >= 2) {
+  googleMaps.searchParams.set('api', '1')
+  googleMaps.searchParams.set('origin', coordinates[0])
+  googleMaps.searchParams.set('destination', coordinates[coordinates.length - 1])
+  if (coordinates.length > 2) googleMaps.searchParams.set('waypoints', coordinates.slice(1, -1).join('|'))
+}
+const projected = stops.map((stop) => ({...stop, x: stop.sighting!.location!.lng, y: stop.sighting!.location!.lat}))
+const minX = Math.min(...projected.map((stop) => stop.x)), maxX = Math.max(...projected.map((stop) => stop.x))
+const minY = Math.min(...projected.map((stop) => stop.y)), maxY = Math.max(...projected.map((stop) => stop.y))
+const spanX = Math.max(maxX - minX, .03), spanY = Math.max(maxY - minY, .03)
+const points = projected.map((stop, index) => ({...stop, index, px: 80 + ((stop.x - minX) / spanX) * 840, py: 60 + ((maxY - stop.y) / spanY) * 340}))
+const line = points.map((point) => `${point.px},${point.py}`).join(' ')
+---
+<EditorialLayout title={route?.title ?? 'Ruta no disponible'} description={route?.description} image={route?.coverImage?.url}>
+  <main class="route-page">
+    <a class="route-back" href="/map">← Volver al radar</a>
+    {route ? <>
+      <header class="route-heading"><p>BITÁCORA DE CAMPO · {route.city}</p><h1>{route.title}</h1><div><span>⌁ {stops.length} paradas</span><span>◷ {route.estimatedMinutes} min estimados</span></div><p class="route-description">{route.description}</p></header>
+      {route.coverImage?.url && <img class="route-cover" src={route.coverImage.url} alt={route.coverImage.alt ?? ''} />}
+      {points.length > 1 && <section class="route-map" aria-label={`Recorrido con ${points.length} paradas`}><div class="route-map__caption">TRAZADO APROXIMADO / {route.city}</div><svg viewBox="0 0 1000 460" role="img" aria-label="Polilínea del recorrido entre las paradas"><polyline points={line} /><>{points.map((point) => <g><circle cx={point.px} cy={point.py} r="17" /><text x={point.px} y={point.py + 5}>{point.index + 1}</text></g>)}</></svg><span class="route-map__note">La ubicación de cada parada sigue la precisión registrada en su expediente.</span></section>}
+      <section class="route-stops"><div><p class="route-kicker">SECUENCIA DE INVESTIGACIÓN</p><h2>Las paradas</h2></div><ol>{route.stops.map((stop, index) => <li><span class="route-stop-index">{String(index + 1).padStart(2, '0')}</span><div><h3>{stop.sighting?.title ?? 'Expediente sin título'}</h3><p>{stop.sighting?.city ?? route.city}</p>{stop.note && <blockquote>{stop.note}</blockquote>}</div></li>)}</ol>{coordinates.length >= 2 && <a class="route-google" href={googleMaps.href} target="_blank" rel="noopener noreferrer">Abrir recorrido en Google Maps ↗</a>}</section>
+    </> : <section class="route-unavailable"><h1>{failed ? 'La ruta no está disponible temporalmente' : 'Ruta no encontrada'}</h1><p>{failed ? 'Intenta consultar el archivo más tarde.' : 'Esta ruta no está publicada o ya no existe.'}</p></section>}
+  </main>
+</EditorialLayout>
+
+<style>
+  .route-page{max-width:72rem;margin:0 auto;padding:clamp(1rem,4vw,3rem);color:#e9e6dd}.route-back{display:inline-block;margin-bottom:2rem;color:#ffd278;text-decoration:none;font:600 .7rem 'IBM Plex Mono',monospace}.route-heading{max-width:56rem}.route-heading>p:first-child,.route-kicker{color:#ffd278;font:700 .62rem 'IBM Plex Mono',monospace;letter-spacing:.15em}.route-heading h1{margin:.6rem 0;color:#e9e6dd;font:700 clamp(2.4rem,7vw,5.7rem) 'Merriweather',serif;line-height:1.02}.route-heading>div{display:flex;flex-wrap:wrap;gap:1rem;color:#b6ff52;font:600 .7rem 'IBM Plex Mono',monospace}.route-description{max-width:48rem;color:#bcb9ac;font:400 .95rem/1.8 'IBM Plex Mono',monospace}.route-cover{display:block;max-width:100%;max-height:30rem;margin:2rem auto;object-fit:cover;filter:sepia(.22) contrast(1.1)}.route-map{position:relative;margin:2rem 0;border:1px solid rgba(255,210,120,.3);background:radial-gradient(ellipse,rgba(182,255,82,.08),transparent 70%),repeating-linear-gradient(0deg,transparent 0 39px,rgba(255,210,120,.07) 39px 40px),repeating-linear-gradient(90deg,transparent 0 39px,rgba(255,210,120,.07) 39px 40px,#0a0d0b)}.route-map__caption,.route-map__note{display:block;padding:.65rem;color:#929083;font:600 .57rem 'IBM Plex Mono',monospace;letter-spacing:.08em}.route-map__caption{color:#ffd278}.route-map svg{display:block;width:100%;height:auto;min-height:18rem}.route-map polyline{fill:none;stroke:#ffd278;stroke-width:3;stroke-dasharray:9 8;vector-effect:non-scaling-stroke}.route-map circle{fill:#0a0d0b;stroke:#b6ff52;stroke-width:2;vector-effect:non-scaling-stroke}.route-map text{fill:#e9e6dd;text-anchor:middle;font:700 13px 'IBM Plex Mono',monospace}.route-stops{display:grid;grid-template-columns:minmax(12rem,.5fr) minmax(0,1fr);gap:1.5rem;margin-top:3rem}.route-stops h2{font:700 2rem 'Merriweather',serif}.route-stops ol{display:grid;gap:.75rem;margin:0;padding:0;list-style:none}.route-stops li{display:grid;grid-template-columns:2.5rem 1fr;gap:.8rem;border-top:1px solid rgba(255,210,120,.24);padding:1rem 0}.route-stop-index{color:#ffd278;font:700 .8rem 'IBM Plex Mono',monospace}.route-stops h3{margin:0;color:#e9e6dd;font:700 1rem 'IBM Plex Sans',sans-serif}.route-stops li p,.route-stops blockquote{color:#929083;font:.72rem/1.6 'IBM Plex Mono',monospace}.route-stops blockquote{margin:.5rem 0 0;color:#c5c0b0}.route-google{grid-column:2;justify-self:start;border:1px solid #b6ff52;padding:.75rem 1rem;color:#b6ff52;font:700 .68rem 'IBM Plex Mono',monospace;text-decoration:none}.route-google:hover{background:#b6ff52;color:#090a09}.route-unavailable{margin-top:3rem;border:1px solid rgba(255,210,120,.3);padding:2rem}.route-unavailable h1{font:700 2rem 'Merriweather',serif}@media(max-width:700px){.route-stops{grid-template-columns:1fr}.route-google{grid-column:1}.route-map svg{min-height:13rem}}
+</style>

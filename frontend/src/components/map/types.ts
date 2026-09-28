@@ -10,4 +10,5 @@ export interface MapSignal {
   status: string
   entityClass: EntityClass
   testimonyAudioUrl?: string
+  timeOfDay?: string
 }

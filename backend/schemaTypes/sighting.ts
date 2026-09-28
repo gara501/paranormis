@@ -160,6 +160,7 @@ export default defineType({
     }),
     defineField({name: 'sourceTitle', title: 'Título de la fuente', type: 'string', validation: (Rule) => Rule.required()}),
     defineField({name: 'sourceUrl', title: 'URL de la fuente', type: 'url', validation: (Rule) => Rule.required().uri({scheme: ['https']})}),
+    defineField({name: 'image', title: 'Imagen del avistamiento', type: 'image', options: {hotspot: true}, fields: [defineField({name: 'alt', title: 'Texto alternativo', type: 'string', validation: (Rule) => Rule.required().max(180)})]}),
 
     defineField({
       name: 'testimonyAudio',

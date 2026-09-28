@@ -56,6 +56,7 @@ export default defineType({
       options: {hotspot: true},
       description: 'The retrofuturist classified-archive-style illustration.',
     }),
+    defineField({name: 'image', title: 'Fotografía o imagen del expediente', type: 'image', options: {hotspot: true}, fields: [defineField({name: 'alt', title: 'Texto alternativo', type: 'string', validation: (Rule) => Rule.required().max(180)})]}),
     defineField({
       name: 'threatLevel',
       title: 'Nivel de amenaza',

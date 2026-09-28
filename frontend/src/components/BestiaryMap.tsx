@@ -18,6 +18,8 @@ interface EnrichedSighting extends MapSignal {
   accountType?: string
   city?: string
   timeOfDay?: string
+  imageUrl?: string
+  imageAlt?: string
   sourceTitle?: string
   sourceUrl?: string
   freeformDescription: string
@@ -34,11 +36,14 @@ interface EnrichedSighting extends MapSignal {
     distinctiveTraits?: string[]
     folkloreOrigin?: string
     imageUrl?: string
+    imageAlt?: string
   } | null
   region: {name: string; country?: string; folkloreHistory?: string} | null
 }
 
 type SightingFromSanity = Omit<EnrichedSighting, 'entityClass'>
+type MapRoute = { _id: string; title: string; slug: {current: string}; city: string; description: string; estimatedMinutes: number; stops: {note?: string; sighting?: {title?: string; city?: string; location?: {lat: number; lng: number}} | null}[] }
+type MapTerritory = { _id: string; name: string; description: string; area: {lat: number; lng: number}[]; creature?: {_id: string; name: string; slug?: {current: string}} | null }
 type ReceiverGraph = {
   context: AudioContext
   master: GainNode
@@ -56,6 +61,7 @@ type NearbyAudioSignal = {id: string; url?: string; proximity: number; pan: numb
 
 const SIGHTING_PROJECTION = `{
   _id, title, city, timeOfDay,
+  "imageUrl": image.asset->url, "imageAlt": image.alt,
   location,
   date,
   dateBasis,
@@ -67,7 +73,7 @@ const SIGHTING_PROJECTION = `{
   status,
   freeformDescription,
   "testimonyAudio": testimonyAudio.asset->{url, originalFilename, mimeType},
-  "creature": creature->{_id, name, threatLevel, physicalDescription, distinctiveTraits, folkloreOrigin, "imageUrl": archiveIllustration.asset->url},
+  "creature": creature->{_id, name, threatLevel, physicalDescription, distinctiveTraits, folkloreOrigin, "imageUrl": coalesce(image.asset->url, archiveIllustration.asset->url), "imageAlt": image.alt},
   "region": region->{name, country, folkloreHistory}
 }`
 
@@ -197,6 +203,16 @@ export default function BestiaryMap() {
   const sheetDragRef = useRef<{pointerId: number; startY: number; lastY: number} | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'live'>('connecting')
   const [sightings, setSightings] = useState<EnrichedSighting[]>([])
+  const [routes, setRoutes] = useState<MapRoute[]>([])
+  const [territories, setTerritories] = useState<MapTerritory[]>([])
+  const [routesEnabled, setRoutesEnabled] = useState(false)
+  const [territoriesEnabled, setTerritoriesEnabled] = useState(false)
+  const [yearRange, setYearRange] = useState<[number, number] | null>(null)
+  const [timelinePlaying, setTimelinePlaying] = useState(false)
+  const [playbackIndex, setPlaybackIndex] = useState(-1)
+  const [isWitchingHour, setIsWitchingHour] = useState(false)
+  const routeLayerRef = useRef<Leaflet.LayerGroup | null>(null)
+  const territoryLayerRef = useRef<Leaflet.LayerGroup | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [mapLoadState, setMapLoadState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [selectedSighting, setSelectedSighting] = useState<EnrichedSighting | null>(null)
@@ -224,7 +240,6 @@ export default function BestiaryMap() {
     {title: 'Receptor EVP', copy: 'Activa el receptor para escuchar interferencias cerca de los reportes.'},
     {title: 'Señal aleatoria', copy: 'Pide al radar que seleccione un expediente del archivo.'},
   ]
-  const orderedSightings = useMemo(() => [...visibleSightings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), [visibleSightings])
   const [classVisibility, setClassVisibility] = useState<Record<EntityClass, boolean>>({
     cryptid: true,
     specter: true,
@@ -236,10 +251,22 @@ export default function BestiaryMap() {
     () => new Set(ENTITY_CLASSES.filter((entityClass) => classVisibility[entityClass])),
     [classVisibility],
   )
-  const visibleSightings = useMemo(
+  const classVisibleSightings = useMemo(
     () => sightings.filter((sighting) => visibleClasses.has(sighting.entityClass)),
     [sightings, visibleClasses],
   )
+  const yearBounds = useMemo<[number, number] | null>(() => {
+    const years = sightings.map((sighting) => new Date(sighting.date).getUTCFullYear()).filter(Number.isFinite)
+    return years.length ? [Math.min(...years), Math.max(...years)] : null
+  }, [sightings])
+  const activeYearRange = yearRange ?? yearBounds
+  const visibleSightings = useMemo(() => classVisibleSightings.filter((sighting) => {
+    if (!activeYearRange) return true
+    const year = new Date(sighting.date).getUTCFullYear()
+    return year >= activeYearRange[0] && year <= activeYearRange[1]
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), [classVisibleSightings, activeYearRange])
+  const timelineEvents = visibleSightings
+  const orderedSightings = visibleSightings
   const classCounts = useMemo(() => {
     const counts: Record<EntityClass, number> = {cryptid: 0, specter: 0, entity: 0, anomaly: 0}
     for (const sighting of sightings) counts[sighting.entityClass] += 1
@@ -281,7 +308,7 @@ export default function BestiaryMap() {
   }, [])
 
   const focusSighting = useCallback((sighting: EnrichedSighting, duration = 1.25, syncUrl = true) => {
-    setIllustrationLoading(Boolean(sighting.creature?.imageUrl))
+    setIllustrationLoading(Boolean(sighting.imageUrl || sighting.creature?.imageUrl))
     setSelectedSighting(sighting)
     setPreviewSighting(null)
     if (syncUrl) {
@@ -334,6 +361,28 @@ export default function BestiaryMap() {
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
   }, [])
+
+  useEffect(() => {
+    if (yearBounds && !yearRange) setYearRange(yearBounds)
+  }, [yearBounds, yearRange])
+
+  useEffect(() => {
+    const update = () => { const now = new Date(); setIsWitchingHour(now.getHours() >= 0 && now.getHours() < 4) }
+    update()
+    const interval = window.setInterval(update, 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (!timelinePlaying) return
+    const timer = window.setTimeout(() => {
+      const next = playbackIndex + 1
+      if (next >= timelineEvents.length) { setTimelinePlaying(false); setPlaybackIndex(-1); return }
+      focusSighting(timelineEvents[next], 0, false)
+      setPlaybackIndex(next)
+    }, 1500)
+    return () => window.clearTimeout(timer)
+  }, [timelinePlaying, playbackIndex, timelineEvents, focusSighting])
 
   useEffect(() => {
     try {
@@ -467,11 +516,15 @@ export default function BestiaryMap() {
         const targetSightingPromise: Promise<SightingFromSanity | null> = targetId
           ? sanityClient.fetch(`*[${PUBLIC_SIGHTING_FILTER} && _id == $id][0] ${SIGHTING_PROJECTION}`, {id: targetId})
           : Promise.resolve(null)
-        const [loadedSightings, targetSighting] = await Promise.all([
+        const [loadedSightings, targetSighting, loadedRoutes, loadedTerritories] = await Promise.all([
           sanityClient.fetch<SightingFromSanity[]>(`*[${PUBLIC_SIGHTING_FILTER} && defined(location)] ${SIGHTING_PROJECTION}`),
           targetSightingPromise,
+          sanityClient.fetch<MapRoute[]>(`*[_type == "route" && defined(slug.current) && !(_id in path("drafts.**"))]{_id,title,slug,city,description,estimatedMinutes,stops[]{note,"sighting":sighting->{title,city,location}}}`),
+          sanityClient.fetch<MapTerritory[]>(`*[_type == "territory" && !(_id in path("drafts.**"))]{_id,name,description,area[]{lat,lng},"creature":creature->{_id,name,slug}}`),
         ])
         if (!isMounted) return
+        setRoutes(loadedRoutes)
+        setTerritories(loadedTerritories)
         loadedSightings.forEach(upsertMarker)
         const located = [...sightingsRef.current.values()].filter((item) => Number.isFinite(item.location?.lat) && Number.isFinite(item.location?.lng))
         if (located.length) {
@@ -532,6 +585,59 @@ export default function BestiaryMap() {
       subscription?.unsubscribe()
     }
   }, [focusSighting, publishSightings, mapInstance])
+
+  useEffect(() => {
+    const L = leafletRef.current
+    if (!mapInstance || !L) return
+    const routeLayer = L.layerGroup()
+    const territoryLayer = L.layerGroup()
+    for (const route of routes) {
+      const stops = route.stops.flatMap((stop) => stop.sighting?.location ? [[stop.sighting.location.lat, stop.sighting.location.lng] as Leaflet.LatLngTuple] : [])
+      if (stops.length < 2) continue
+      L.polyline(stops, {color: '#ffd278', weight: 2.5, opacity: .8, dashArray: '5 7'}).addTo(routeLayer)
+      stops.forEach((point, index) => L.circleMarker(point, {radius: 4, color: '#ffd278', weight: 1.5, fillColor: '#090a09', fillOpacity: .95}).bindTooltip(`${index + 1}. ${route.stops[index]?.sighting?.city ?? route.city}`).addTo(routeLayer))
+      const first = route.stops.find((stop) => stop.sighting?.location)?.sighting?.location
+      if (first) {
+        const popup = document.createElement('div')
+        const heading = document.createElement('strong')
+        heading.textContent = route.title
+        const detail = document.createElement('p')
+        detail.textContent = `${route.city} · ${stops.length} paradas · ${route.estimatedMinutes} min`
+        const link = document.createElement('a')
+        link.href = `/rutas/${encodeURIComponent(route.slug.current)}`
+        link.textContent = 'Abrir ruta ↗'
+        popup.append(heading, detail, link)
+        L.circleMarker([first.lat, first.lng], {radius: 8, color: '#ffd278', fillOpacity: .15}).bindPopup(popup).addTo(routeLayer)
+      }
+    }
+    for (const territory of territories) {
+      if (territory.area.length < 3) continue
+      const polygon = L.polygon(territory.area.map(({lat, lng}) => [lat, lng] as Leaflet.LatLngTuple), {color: '#b6ff52', weight: 1.5, opacity: .32, fillColor: '#a9d88d', fillOpacity: .11, className: 'territory-fog-polygon'})
+      const popup = document.createElement('div')
+      const heading = document.createElement('strong')
+      heading.textContent = territory.name
+      const description = document.createElement('p')
+      description.textContent = territory.description
+      popup.append(heading, description)
+      if (territory.creature) {
+        const link = document.createElement('a')
+        link.href = `/bestiary#${encodeURIComponent(territory.creature._id)}`
+        link.textContent = `Ver a ${territory.creature.name} en el bestiario ↗`
+        popup.append(link)
+      }
+      polygon.bindPopup(popup).addTo(territoryLayer)
+    }
+    routeLayerRef.current = routeLayer
+    territoryLayerRef.current = territoryLayer
+    if (routesEnabled) routeLayer.addTo(mapInstance)
+    if (territoriesEnabled) territoryLayer.addTo(mapInstance)
+    return () => {
+      routeLayer.remove()
+      territoryLayer.remove()
+      routeLayerRef.current = null
+      territoryLayerRef.current = null
+    }
+  }, [mapInstance, routes, territories, routesEnabled, territoriesEnabled])
 
   useEffect(() => {
     if (!selectedSighting) return
@@ -676,7 +782,7 @@ export default function BestiaryMap() {
   const livePoint = liveSighting && mapInstance ? mapInstance.latLngToContainerPoint([liveSighting.location.lat, liveSighting.location.lng]) : null
 
   return (
-    <main className={`bestiary-map-wrap${isGlitching ? ' bestiary-map-wrap--glitch' : ''}`}>
+    <main className={`bestiary-map-wrap${isGlitching ? ' bestiary-map-wrap--glitch' : ''}${isWitchingHour ? ' bestiary-map-wrap--witching' : ''}`}>
       <SiteHeader active="map" overlay />
       <div className="bestiary-map__atmosphere" aria-hidden="true" />
       {mapLoadState !== 'ready' && (
@@ -701,6 +807,7 @@ export default function BestiaryMap() {
             <i /> {connectionStatus === 'connecting' ? 'Conectando sensores' : `Radar activo · ${visibleSightings.length} señales`}
           </span>
           <span className="bestiary-map__sector">Sector global</span>
+          {isWitchingHour && <span className="bestiary-map__witching" aria-label="Hora local entre medianoche y cuatro">✦ Hora bruja</span>}
         </div>
       </div>
       <button className="bestiary-map__tutorial-trigger" type="button" onClick={() => { setTutorialStep(0); setTutorialOpen(true) }} aria-label="Abrir guía del radar">?</button>
@@ -714,6 +821,7 @@ export default function BestiaryMap() {
           selectedSignalId={selectedSighting?._id ?? null}
           previewSignalId={previewSighting?._id ?? null}
           flashlightOn={flashlightOn}
+          witchingHour={isWitchingHour}
           receiverActive={receiverOn}
           staticBurst={isGlitching}
           reducedMotion={reducedMotion}
@@ -726,7 +834,7 @@ export default function BestiaryMap() {
       )}
 
       {previewSighting && previewPoint && !selectedSighting && <aside className="bestiary-map__preview" style={{left: Math.min(previewPoint.x + 16, window.innerWidth - 250), top: Math.max(96, previewPoint.y - 18)}} aria-live="polite">
-        <small>SEÑAL REVELADA</small><strong>{previewSighting.title ?? previewSighting.creature?.name ?? 'Entidad sin clasificar'}</strong><span>{previewSighting.creature?.name ?? 'Fenómeno sin clasificar'} · {previewSighting.city ?? previewSighting.region?.name ?? 'Lugar desconocido'}</span>
+        <small>SEÑAL REVELADA</small><strong>{previewSighting.title ?? previewSighting.creature?.name ?? 'Entidad sin clasificar'}</strong><span>{previewSighting.creature?.name ?? 'Fenómeno sin clasificar'} · {previewSighting.city ?? previewSighting.region?.name ?? 'Lugar desconocido'}</span><span>{previewSighting.dateBasis === 'record_date' ? 'Fuente publicada · ' : 'Fecha del relato · '}{formatDate(previewSighting.date)}</span>
         <button type="button" onClick={() => focusSighting(previewSighting)}>Abrir expediente ↗</button>
       </aside>}
       {liveSighting && livePoint && <span className="bestiary-map__live-ping" style={{left: livePoint.x, top: livePoint.y}} aria-hidden="true" />}
@@ -774,6 +882,14 @@ export default function BestiaryMap() {
         <div className={`bestiary-map__waveform${receiverOn ? ' is-active' : ''}`} aria-label="Monitor de audio EVP">{Array.from({length: 17}, (_, index) => <i key={index} />)}</div>
       </div>
 
+      {yearBounds && activeYearRange && <section className="bestiary-map__timeline" aria-label="Línea de tiempo del archivo">
+        <span className="bestiary-map__timeline-label">ARCHIVO CRONOLÓGICO</span>
+        <label><span>Desde {activeYearRange[0]}</span><input type="range" min={yearBounds[0]} max={yearBounds[1]} value={activeYearRange[0]} aria-label="Año inicial" onChange={(event) => setYearRange([Math.min(Number(event.currentTarget.value), activeYearRange[1]), activeYearRange[1]])} /></label>
+        <label><span>Hasta {activeYearRange[1]}</span><input type="range" min={yearBounds[0]} max={yearBounds[1]} value={activeYearRange[1]} aria-label="Año final" onChange={(event) => setYearRange([activeYearRange[0], Math.max(Number(event.currentTarget.value), activeYearRange[0])])} /></label>
+        <span className="bestiary-map__timeline-count">{visibleSightings.length} expedientes</span>
+        <button type="button" disabled={visibleSightings.length === 0} aria-pressed={timelinePlaying} onClick={() => { if (timelinePlaying) setTimelinePlaying(false); else { setPlaybackIndex(-1); setTimelinePlaying(true) } }}>{timelinePlaying ? 'Ⅱ Pausar' : '▶ Reproducir'}</button>
+      </section>}
+
       <button className={`bestiary-map__scan ${isScanning ? 'bestiary-map__scan--active' : ''}`} type="button" onClick={scanForSignals} disabled={visibleSightings.length === 0}>
         <span className="bestiary-map__scan-icon" aria-hidden="true">⌁</span>
         {isScanning ? 'Triangulando…' : 'Rastrear señales'}
@@ -792,6 +908,8 @@ export default function BestiaryMap() {
       <div id="map-actions-panel" className="bestiary-map__explore-controls" data-mobile-open={actionsOpen}>
         <a className="bestiary-map__archive-link" href="/bestiary"><span aria-hidden="true">✦</span> Abrir el archivo <span aria-hidden="true">↗</span></a>
         <a className="bestiary-map__report-link" href="/explorar"><span aria-hidden="true">⌖</span> Buscar por ciudad</a>
+        <button type="button" className="bestiary-map__explore" aria-pressed={routesEnabled} onClick={() => setRoutesEnabled((enabled) => !enabled)} disabled={routes.length === 0}><span aria-hidden="true">⌁</span> Rutas · {routesEnabled ? 'activas' : 'inactivas'}</button>
+        <button type="button" className="bestiary-map__explore" aria-pressed={territoriesEnabled} onClick={() => setTerritoriesEnabled((enabled) => !enabled)} disabled={territories.length === 0}><span aria-hidden="true">◌</span> Territorios · {territoriesEnabled ? 'activos' : 'inactivos'}</button>
         <button type="button" className="bestiary-map__explore" onClick={() => { discoverRandomSignal(); setActionsOpen(false) }} disabled={visibleSightings.length === 0}>
           <span aria-hidden="true">✦</span> Señal aleatoria
         </button>
@@ -823,8 +941,8 @@ export default function BestiaryMap() {
           </div>
           <div className="creature-dossier__image-wrap">
             {illustrationLoading && <div className="creature-dossier__revelation" role="status" aria-live="polite"><span className="creature-dossier__revelation-sigil">✦</span><span>Revelando imagen</span></div>}
-            {selectedSighting.creature?.imageUrl ? (
-              <img src={selectedSighting.creature.imageUrl} alt={`Ilustración de ${selectedSighting.creature.name}`} className={`creature-dossier__image ${illustrationLoading ? 'creature-dossier__image--loading' : ''}`} onLoad={() => setIllustrationLoading(false)} onError={() => setIllustrationLoading(false)} />
+            {(selectedSighting.imageUrl || selectedSighting.creature?.imageUrl) ? (
+              <img src={selectedSighting.imageUrl ?? selectedSighting.creature?.imageUrl} alt={selectedSighting.imageAlt ?? selectedSighting.creature?.imageAlt ?? `Ilustración de ${selectedSighting.creature?.name ?? 'el avistamiento'}`} className={`creature-dossier__image ${illustrationLoading ? 'creature-dossier__image--loading' : ''}`} onLoad={() => setIllustrationLoading(false)} onError={() => setIllustrationLoading(false)} />
             ) : <div className="creature-dossier__missing-image">?</div>}
             <span className="creature-dossier__stamp">Expediente abierto</span>
           </div>
